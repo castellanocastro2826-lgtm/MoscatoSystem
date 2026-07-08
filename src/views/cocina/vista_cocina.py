@@ -19,12 +19,14 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         self._ticket_cards: list[ctk.CTkFrame] = []
         self._board_canvas: tk.Canvas | None = None
         self._board_content: ctk.CTkFrame | None = None
+        self.scroll_frame: ctk.CTkFrame | None = None
         self._board_host: ctk.CTkFrame | None = None
         self._board_window_id: int | None = None
         self._board_layout_pending = False
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
         self._active_section = "kitchen"
         self._main_frame: ctk.CTkFrame | None = None
+        self._stat_labels: dict[str, ctk.CTkLabel] = {}
 
         self._build_layout()
 
@@ -75,7 +77,9 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         if self._main_frame is None:
             return
 
-        self._main_frame.grid_columnconfigure(0, weight=1)
+        self._main_frame.grid_columnconfigure((0, 1, 2), weight=1)
+        self._main_frame.grid_rowconfigure(0, weight=0)
+        self._main_frame.grid_rowconfigure(1, weight=0)
         self._main_frame.grid_rowconfigure(2, weight=1)
         self._build_header(self._main_frame)
         self._build_stats(self._main_frame)
@@ -123,13 +127,13 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         ).pack(anchor="w", padx=24)
 
     def _build_header(self, parent: tk.Misc) -> None:
-        header = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0, height=66)
-        header.grid(row=0, column=0, sticky="ew", padx=10, pady=(8, 4))
+        header = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0, height=30)
+        header.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(8, 2))
         header.grid_propagate(False)
 
-        ctk.CTkLabel(header, text="MOSCATO", text_color="#F4EBD0", font=("Segoe UI", 40, "bold")).pack(side="left", padx=(8, 8))
+        ctk.CTkLabel(header, text="MOSCATO", text_color="#F4EBD0", font=("Segoe UI", 34, "bold")).pack(side="left", padx=(8, 8))
         ctk.CTkFrame(header, fg_color="#7A3931", width=2, height=38, corner_radius=0).pack(side="left", padx=8, pady=10)
-        ctk.CTkLabel(header, text=self.usuario, text_color="#F09F86", font=("Segoe UI", 24, "bold")).pack(side="left")
+        ctk.CTkLabel(header, text=self.usuario, text_color="#F09F86", font=("Segoe UI", 20, "bold")).pack(side="left")
 
         tools = ctk.CTkFrame(header, fg_color="#221214", corner_radius=8)
         tools.pack(side="right", padx=(8, 0), pady=6)
@@ -153,8 +157,9 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             )
 
     def _build_stats(self, parent: tk.Misc) -> None:
+        self._stat_labels = {}
         wrap = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0)
-        wrap.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 8))
+        wrap.grid(row=1, column=0, columnspan=3, sticky="ew", padx=10, pady=(2, 8))
         wrap.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         cards = [
@@ -172,16 +177,30 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             ctk.CTkLabel(stat, text=title, text_color="#E8DABF", font=("Segoe UI", 9, "bold")).grid(
                 row=0, column=0, sticky="w", padx=10, pady=(8, 2)
             )
-            ctk.CTkLabel(stat, text=value, text_color=accent, font=("Segoe UI", 38, "bold")).grid(
+            value_label = ctk.CTkLabel(stat, text=value, text_color=accent, font=("Segoe UI", 38, "bold"))
+            value_label.grid(
                 row=1, column=0, sticky="w", padx=10, pady=(0, 8)
             )
+            self._stat_labels[title] = value_label
             ctk.CTkLabel(stat, text="", image=self._make_icon(icon, accent, size=20), fg_color="transparent").grid(
                 row=1, column=1, sticky="e", padx=(0, 10), pady=(0, 6)
             )
 
+    def actualizar_estadisticas(self, pedidos_activos, tiempo_promedio, en_prep, pendientes) -> None:
+        stats = {
+            "PEDIDOS ACTIVOS": str(pedidos_activos),
+            "TIEMPO PROMEDIO": str(tiempo_promedio),
+            "EN PREPARACION": str(en_prep).zfill(2),
+            "PENDIENTES": str(pendientes).zfill(2),
+        }
+        for titulo, valor in stats.items():
+            label = self._stat_labels.get(titulo)
+            if label is not None:
+                label.configure(text=valor)
+
     def _build_board(self, parent: tk.Misc) -> None:
         host = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0)
-        host.grid(row=2, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        host.grid(row=2, column=0, columnspan=3, sticky="nsew", padx=10, pady=(0, 10))
         host.grid_columnconfigure(0, weight=1)
         host.grid_rowconfigure(0, weight=1)
 
@@ -197,84 +216,30 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
         self._board_canvas = canvas
         self._board_content = content
+        self.scroll_frame = content
         self._board_host = host
+
+        self.scroll_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="columna_estricta")
 
         content.bind("<Configure>", self._update_board_scrollregion)
         canvas.bind("<Configure>", self._on_board_canvas_configure)
         host.bind("<Configure>", self._schedule_board_layout)
-
-        ticket_data = [
-            {
-                "mesa": "T-04",
-                "tiempo": "22:05",
-                "estado": "CRITICO",
-                "estado_bg": "#8E1313",
-                "borde": "#9D1B1B",
-                "items": ["2x  BIFE DE CHORIZO", "1x  RISOTTO DE HONGOS", "1x  ENSALADA CAPRESE"],
-                "detalle": "Punto: Sangrante",
-            },
-            {
-                "mesa": "T-12",
-                "tiempo": "08:15",
-                "estado": "PREPARANDO",
-                "estado_bg": "#D89B1C",
-                "borde": "#B8891D",
-                "items": ["3x  PASTA CARBONARA", "1x  GNOCCHI AL PESTO"],
-                "detalle": "Extra queso pecorino",
-            },
-            {
-                "mesa": "#882",
-                "tiempo": "04:30",
-                "estado": "PREPARANDO",
-                "estado_bg": "#D89B1C",
-                "borde": "#B8891D",
-                "items": ["4x  PIZZA MARGHERITA"],
-                "detalle": "Para llevar",
-            },
-            {
-                "mesa": "T-08",
-                "tiempo": "18:45",
-                "estado": "DEMORADO",
-                "estado_bg": "#8E1313",
-                "borde": "#9D1B1B",
-                "items": ["1x  PULPO A LA GALLEGA", "1x  CALAMARES FRITOS"],
-                "detalle": "Mesa",
-            },
-            {
-                "mesa": "T-02",
-                "tiempo": "02:10",
-                "estado": "NUEVO",
-                "estado_bg": "#C49315",
-                "borde": "#B8891D",
-                "items": ["1x  TIRAMISU MOSCATO", "2x  ESPRESSO DOBLE"],
-                "detalle": "Mesa",
-            },
-        ]
-
-        self._ticket_cards = [self._kitchen_ticket(content, data) for data in ticket_data]
+        self._ticket_cards.clear()
         self.after_idle(self._layout_board_cards)
 
     def _layout_board_cards(self) -> None:
         self._board_layout_pending = False
-        if not self._board_content or not self._board_canvas:
+        if not self.scroll_frame or not self._board_canvas:
             return
 
-        available_width = max(1, self._board_canvas.winfo_width() - 20)
-        card_min_width = 330
-        columns = max(1, available_width // card_min_width)
-        columns = min(columns, len(self._ticket_cards))
-
         for index, card in enumerate(self._ticket_cards):
+            row_calc = index // 3
+            col_calc = index % 3
             card.grid_forget()
-            row = index // columns
-            col = index % columns
-            card.grid(row=row, column=col, sticky="nsew", padx=6, pady=6)
-            card.configure(width=max(300, available_width // columns - 14))
+            card.grid(row=row_calc, column=col_calc, padx=15, pady=15, sticky="nsew")
+            card.configure(width=300, height=360)
 
-        for col_idx in range(len(self._ticket_cards)):
-            self._board_content.grid_columnconfigure(col_idx, weight=0)
-        for col_idx in range(columns):
-            self._board_content.grid_columnconfigure(col_idx, weight=1, uniform="kitchen")
+        self.scroll_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="columna_estricta")
 
         self._update_board_scrollregion()
 
@@ -294,8 +259,16 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         if self._board_canvas is not None:
             self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))
 
-    def _kitchen_ticket(self, parent: tk.Misc, data: dict) -> ctk.CTkFrame:
-        card = ctk.CTkFrame(parent, fg_color="#2A1718", border_color=data["borde"], border_width=1, corner_radius=8)
+    def _kitchen_ticket(self, parent: tk.Misc, data: dict, callback_notificar) -> ctk.CTkFrame:
+        card = ctk.CTkFrame(
+            parent,
+            fg_color="#2A1718",
+            border_color=data["borde"],
+            border_width=1,
+            corner_radius=8,
+            width=300,
+            height=360,
+        )
         card.grid_propagate(False)
 
         header_color = "#6A0E0E" if data["estado"] in {"CRITICO", "DEMORADO"} else "#4B360F"
@@ -332,22 +305,45 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         body = ctk.CTkFrame(card, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=8, pady=(8, 6))
 
+        dishes = ctk.CTkFrame(body, fg_color="transparent")
+        dishes.pack(side="top", anchor="w", fill="x", expand=False)
+
         first = True
         for item in data["items"]:
             parts = item.split("  ", 1)
             qty = parts[0] if len(parts) > 1 else ""
             name = parts[1] if len(parts) > 1 else parts[0]
 
-            row = ctk.CTkFrame(body, fg_color="transparent")
-            row.pack(fill="x", pady=(0, 4))
-            ctk.CTkLabel(row, text=qty, text_color="#FF9C00", font=("Segoe UI", 22, "bold")).pack(side="left")
-            ctk.CTkLabel(row, text=f" {name}", text_color="#F4EBD0", font=("Segoe UI", 20, "bold")).pack(side="left")
+            row = ctk.CTkFrame(dishes, fg_color="transparent")
+            row.pack(side="top", anchor="w", fill="x", expand=False, pady=(0, 4))
+            ctk.CTkLabel(row, text=qty, text_color="#FF9C00", font=("Segoe UI", 22, "bold")).pack(
+                side="left", anchor="w", expand=False
+            )
+            ctk.CTkLabel(
+                row,
+                text=f" {name}",
+                text_color="#F4EBD0",
+                font=("Segoe UI", 14, "bold"),
+                wraplength=220,
+                justify="left",
+            ).pack(side="left", anchor="w", fill="x", expand=False)
 
             if first and data.get("detalle"):
-                ctk.CTkLabel(body, text=data["detalle"], text_color="#F19B95", font=("Segoe UI", 12, "italic")).pack(anchor="w", pady=(0, 6))
+                ctk.CTkLabel(
+                    dishes,
+                    text=data["detalle"],
+                    text_color="#F19B95",
+                    font=("Segoe UI", 12, "italic"),
+                    wraplength=200,
+                    justify="left",
+                ).pack(side="top", anchor="w", expand=False, pady=(0, 6))
                 first = False
 
-            ctk.CTkFrame(body, fg_color="#5C3A3A", height=1, corner_radius=0).pack(fill="x", pady=(2, 4))
+            ctk.CTkFrame(dishes, fg_color="#5C3A3A", height=1, corner_radius=0).pack(
+                side="top", anchor="w", fill="x", expand=False, pady=(2, 4)
+            )
+
+        ctk.CTkFrame(body, fg_color="transparent").pack(side="top", fill="both", expand=True)
 
         ctk.CTkButton(
             card,
@@ -359,10 +355,24 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             text_color="#F4EBD0",
             font=("Segoe UI", 12, "bold"),
             height=38,
-            command=lambda: None,
-        ).pack(fill="x", padx=6, pady=(0, 6))
+            command=lambda id_det=data["id_detalle"]: callback_notificar(id_det),
+        ).pack(side="bottom", fill="x", padx=10, pady=10)
 
         return card
+
+    def actualizar_monitor(self, nuevos_pedidos: list[dict], callback_notificar) -> None:
+        """Borra los tickets anteriores y renderiza los nuevos provenientes de la BD."""
+        for card in self._ticket_cards:
+            card.destroy()
+        self._ticket_cards.clear()
+
+        if self._board_content:
+            self._ticket_cards = [
+                self._kitchen_ticket(self._board_content, data, callback_notificar)
+                for data in nuevos_pedidos
+            ]
+
+        self._layout_board_cards()
 
     def _nav_button(
         self,

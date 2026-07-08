@@ -1,3 +1,5 @@
+import platform
+platform.win32_ver = lambda *args, **kwargs: ("10", "10.0.0", "", "")
 import os
 import tkinter as tk
 from tkinter import messagebox
@@ -6,6 +8,10 @@ import customtkinter as ctk
 import mysql.connector
 from mysql.connector import Error
 
+from src.controllers.cocina.controlador_cocina import ControladorCocina
+from src.models.cocina.modelo_cocina import ModeloCocina
+from src.views.cocina.vista_cocina import CocinaDesignWindow
+from src.views.pedidos.vista_mesero import MeseroDesignWindow
 from src.views.vista_unificada import UnifiedDashboardWindow
 
 
@@ -193,13 +199,17 @@ class LoginWindow(ctk.CTk):
 
     def _open_mesero_design_demo(self) -> None:
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario="Alejandro V.", initial_section="orders", rol="mesonero")
-        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+        demo_window = MeseroDesignWindow(self, usuario="Alejandro V.")
+        demo_window.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def _open_cocina_design_demo(self) -> None:
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario="Cocina Central", initial_section="kitchen", rol="cocinero")
-        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+        modelo = ModeloCocina()
+        demo_window = CocinaDesignWindow(self, usuario="Cocina Central")
+        controlador = ControladorCocina(demo_window, modelo)
+        demo_window.controlador = controlador
+        controlador.actualizar_pantalla()
+        demo_window.protocol("WM_DELETE_WINDOW", self.destroy)
 
 
 def main() -> None:

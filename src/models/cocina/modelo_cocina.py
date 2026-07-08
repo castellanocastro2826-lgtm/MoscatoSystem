@@ -1,0 +1,81 @@
+import os
+from typing import Any
+
+import mysql.connector
+from mysql.connector import Error
+
+
+class ModeloCocina:
+    """Modelo MVC para operaciones de cocina en MySQL."""
+
+    def __init__(self) -> None:
+        self._db_config = {
+            "host": os.getenv("DB_HOST", "127.0.0.1"),
+            "port": int(os.getenv("DB_PORT", "3396")),
+            "user": os.getenv("DB_USER", "root"),
+            "password": os.getenv("DB_PASSWORD", ""),
+            "database": os.getenv("DB_NAME", "moscato_db"),
+            "autocommit": False,
+        }
+
+    def _connect(self):
+        try:
+            return mysql.connector.connect(**self._db_config)
+        except Error as exc:
+            raise ConnectionError(f"No fue posible conectar con MySQL: {exc}") from exc
+
+    def obtener_pedidos_activos(self) -> list[dict[str, Any]]:
+        """Obtiene los items activos de cocina con JOIN sobre detalle, pedido, producto y mesa."""
+        sql = """
+            SELECT
+                dp.id_detalle,
+                CASE
+                    WHEN p.id_mesa IS NULL OR p.tipo_pedido = 'Para llevar' THEN 'Para llevar'
+                    ELSE CAST(m.numero_mesa AS CHAR)
+                END AS numero_mesa,
+                pr.nombre AS nombre,
+                dp.cantidad,
+                dp.estado_item AS estado_item,
+                dp.descripcion_preparacion,
+                dp.fecha_envio_cocina
+            FROM detalle_pedido dp
+            INNER JOIN pedidos p
+                ON p.id_pedido = dp.id_pedido
+            INNER JOIN productos pr
+                ON pr.id_producto = dp.id_producto
+            LEFT JOIN mesas m
+                ON m.id_mesa = p.id_mesa
+            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación')
+            ORDER BY dp.fecha_envio_cocina ASC, dp.id_detalle ASC
+        """
+
+        connection = self._connect()
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(sql)
+                return cursor.fetchall()
+        except Error as exc:
+            raise RuntimeError(f"Error consultando pedidos activos: {exc}") from exc
+        finally:
+            connection.close()
+
+    def actualizar_estado_item(self, id_detalle: int, nuevo_estado: str) -> bool:
+        """Actualiza el estado_item en detalle_pedido para el id_detalle indicado."""
+        sql = """
+            UPDATE detalle_pedido
+            SET estado_item = %s
+            WHERE id_detalle = %s
+        """
+
+        connection = self._connect()
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(sql, (nuevo_estado, id_detalle))
+                actualizado = cursor.rowcount > 0
+            connection.commit()
+            return actualizado
+        except Error as exc:
+            connection.rollback()
+            raise RuntimeError(f"Error actualizando estado del item: {exc}") from exc
+        finally:
+            connection.close()
