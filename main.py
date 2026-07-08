@@ -1,0 +1,211 @@
+import os
+import tkinter as tk
+from tkinter import messagebox
+
+import customtkinter as ctk
+import mysql.connector
+from mysql.connector import Error
+
+from src.views.vista_unificada import UnifiedDashboardWindow
+
+
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("dark-blue")
+
+
+class DatabaseConnection:
+    def __init__(self) -> None:
+        self.config = {
+            "host": os.getenv("DB_HOST", "127.0.0.1"),
+            "port": int(os.getenv("DB_PORT", "3396")),
+            "user": os.getenv("DB_USER", "root"),
+            "password": os.getenv("DB_PASSWORD", ""),
+            "database": os.getenv("DB_NAME", "moscato_db"),
+            "autocommit": True,
+        }
+
+    def connect(self):
+        try:
+            return mysql.connector.connect(**self.config)
+        except Error as exc:
+            raise ConnectionError(f"No fue posible conectar a MySQL: {exc}") from exc
+
+
+class LoginWindow(ctk.CTk):
+    def __init__(self) -> None:
+        super().__init__()
+        self.title("Restaurante Moscato - Inicio de Sesion")
+        self.geometry("860x520")
+        self.minsize(760, 460)
+        self.configure(fg_color="#1A1C1E")
+
+        self.db = DatabaseConnection()
+        self._build_layout()
+
+    def _build_layout(self) -> None:
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+
+        container = ctk.CTkFrame(self, fg_color="#1A1C1E", corner_radius=0)
+        container.grid(row=0, column=0, sticky="nsew")
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_rowconfigure(0, weight=1)
+
+        card = ctk.CTkFrame(
+            container,
+            fg_color="#23272A",
+            border_width=1,
+            border_color="#34393D",
+            corner_radius=12,
+        )
+        card.grid(row=0, column=0, padx=24, pady=24)
+        card.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            card,
+            text="Restaurante Moscato",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 28, "bold"),
+        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        ctk.CTkLabel(
+            card,
+            text="Sistema de gestion de pedidos - Acceso de personal",
+            text_color="#D6C9A8",
+            font=("Segoe UI", 12),
+        ).grid(row=1, column=0, sticky="w", pady=(0, 18))
+
+        ctk.CTkLabel(card, text="Usuario", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
+            row=2, column=0, sticky="w", pady=(0, 6)
+        )
+        self.username_var = tk.StringVar()
+        self.username_entry = ctk.CTkEntry(
+            card,
+            textvariable=self.username_var,
+            width=420,
+            height=40,
+            fg_color="#151719",
+            border_color="#35393D",
+            text_color="#F4EBD0",
+        )
+        self.username_entry.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+
+        ctk.CTkLabel(card, text="Contrasena", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
+            row=4, column=0, sticky="w", pady=(0, 6)
+        )
+        self.password_var = tk.StringVar()
+        self.password_entry = ctk.CTkEntry(
+            card,
+            textvariable=self.password_var,
+            show="*",
+            width=420,
+            height=40,
+            fg_color="#151719",
+            border_color="#35393D",
+            text_color="#F4EBD0",
+        )
+        self.password_entry.grid(row=5, column=0, sticky="ew", pady=(0, 18))
+
+        ctk.CTkButton(
+            card,
+            text="Iniciar sesion",
+            fg_color="#8C1A11",
+            hover_color="#A1241A",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 13, "bold"),
+            height=40,
+            command=self._attempt_login,
+        ).grid(row=6, column=0, sticky="ew")
+
+        ctk.CTkButton(
+            card,
+            text="Ver Diseno Mesero (Demo)",
+            fg_color="#4A1E1A",
+            hover_color="#5B241F",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            height=38,
+            command=self._open_mesero_design_demo,
+        ).grid(row=7, column=0, sticky="ew", pady=(8, 0))
+
+        ctk.CTkButton(
+            card,
+            text="Ver Diseno Cocina (Demo)",
+            fg_color="#4A1E1A",
+            hover_color="#5B241F",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            height=38,
+            command=self._open_cocina_design_demo,
+        ).grid(row=8, column=0, sticky="ew", pady=(8, 0))
+
+        self.status_var = tk.StringVar(value="Listo para autenticar")
+        ctk.CTkLabel(card, textvariable=self.status_var, text_color="#D6C9A8", font=("Segoe UI", 11)).grid(
+            row=9, column=0, sticky="w", pady=(12, 0)
+        )
+
+        self.bind("<Return>", lambda _event: self._attempt_login())
+        self.username_entry.focus_set()
+
+    def _attempt_login(self) -> None:
+        username = self.username_var.get().strip()
+        password = self.password_var.get().strip()
+
+        if not username or not password:
+            messagebox.showwarning("Campos requeridos", "Debe ingresar usuario y contrasena.")
+            return
+
+        self.status_var.set("Verificando credenciales...")
+        self.update_idletasks()
+
+        try:
+            connection = self.db.connect()
+            try:
+                with connection.cursor(dictionary=True) as cursor:
+                    cursor.execute(
+                        "SELECT id_usuario, nombre, username, rol FROM usuarios WHERE username = %s AND password = %s AND activo = 1",
+                        (username, password),
+                    )
+                    user = cursor.fetchone()
+            finally:
+                connection.close()
+
+            if not user:
+                self.status_var.set("Credenciales invalidas")
+                messagebox.showerror("Acceso denegado", "Usuario o contrasena incorrectos.")
+                return
+
+            self.status_var.set(f"Sesion iniciada: {user['nombre']} ({user['rol']})")
+            self._open_dashboard(user)
+
+        except ConnectionError as exc:
+            self.status_var.set("Error de conexion")
+            messagebox.showerror("Base de datos", str(exc))
+        except Error as exc:
+            self.status_var.set("Error en autenticacion")
+            messagebox.showerror("Error", f"No se pudo validar el usuario: {exc}")
+
+    def _open_dashboard(self, user: dict) -> None:
+        rol = str(user.get("rol", "")).strip().lower()
+        initial_section = "kitchen" if rol == "cocinero" else "orders"
+        self.withdraw()
+        dashboard = UnifiedDashboardWindow(self, usuario=user["nombre"], initial_section=initial_section)
+        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def _open_mesero_design_demo(self) -> None:
+        self.withdraw()
+        dashboard = UnifiedDashboardWindow(self, usuario="Alejandro V.", initial_section="orders")
+        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+
+    def _open_cocina_design_demo(self) -> None:
+        self.withdraw()
+        dashboard = UnifiedDashboardWindow(self, usuario="Cocina Central", initial_section="kitchen")
+        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+
+
+def main() -> None:
+    app = LoginWindow()
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
