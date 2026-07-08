@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageTk
 class UnifiedDashboardWindow(ctk.CTkToplevel):
     """Panel unificado Mesero/Cocina en una sola ventana."""
 
-    def __init__(self, master: tk.Misc, usuario: str, initial_section: str = "orders") -> None:
+    def __init__(self, master: tk.Misc, usuario: str, initial_section: str = "orders", rol: str | None = None) -> None:
         super().__init__(master)
         self.title("Moscato - Panel Unificado")
         self.geometry("1360x820")
@@ -15,6 +15,9 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         self.configure(fg_color="#141517")
 
         self.usuario = usuario
+        if rol is None:
+            rol = "cocinero" if initial_section == "kitchen" else "mesonero"
+        self.rol = str(rol).strip().lower()
         self._active_section = initial_section
         self._icon_refs: list[ImageTk.PhotoImage] = []
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
@@ -60,14 +63,21 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         menu.grid(row=1, column=0, sticky="nsew", padx=8, pady=(10, 8))
         sidebar.grid_rowconfigure(1, weight=1)
 
-        self._nav_buttons["orders"] = self._nav_button(menu, "Orders", "orders")
-        self._nav_buttons["orders"].grid(row=0, column=0, sticky="ew", pady=4)
-        self._nav_buttons["kitchen"] = self._nav_button(menu, "Kitchen", "kitchen")
-        self._nav_buttons["kitchen"].grid(row=1, column=0, sticky="ew", pady=4)
-        self._nav_buttons["inventory"] = self._nav_button(menu, "Inventory", "inventory")
-        self._nav_buttons["inventory"].grid(row=2, column=0, sticky="ew", pady=4)
-        self._nav_buttons["menu"] = self._nav_button(menu, "Menu", "menu")
-        self._nav_buttons["menu"].grid(row=3, column=0, sticky="ew", pady=4)
+        if self.rol == "mesonero":
+            menu_items = [("orders", "Orders")]
+        elif self.rol == "cocinero":
+            menu_items = [("kitchen", "Kitchen")]
+        else:
+            menu_items = [
+                ("orders", "Orders"),
+                ("kitchen", "Kitchen"),
+                ("inventory", "Inventory"),
+                ("menu", "Menu"),
+            ]
+
+        for row, (section, label) in enumerate(menu_items):
+            self._nav_buttons[section] = self._nav_button(menu, label, section)
+            self._nav_buttons[section].grid(row=row, column=0, sticky="ew", pady=4)
 
         foot = ctk.CTkFrame(sidebar, fg_color="transparent")
         foot.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 14))

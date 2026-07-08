@@ -188,17 +188,17 @@ class LoginWindow(ctk.CTk):
         rol = str(user.get("rol", "")).strip().lower()
         initial_section = "kitchen" if rol == "cocinero" else "orders"
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario=user["nombre"], initial_section=initial_section)
+        dashboard = UnifiedDashboardWindow(self, usuario=user["nombre"], initial_section=initial_section, rol=rol)
         dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def _open_mesero_design_demo(self) -> None:
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario="Alejandro V.", initial_section="orders")
+        dashboard = UnifiedDashboardWindow(self, usuario="Alejandro V.", initial_section="orders", rol="mesonero")
         dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def _open_cocina_design_demo(self) -> None:
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario="Cocina Central", initial_section="kitchen")
+        dashboard = UnifiedDashboardWindow(self, usuario="Cocina Central", initial_section="kitchen", rol="cocinero")
         dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
 
 

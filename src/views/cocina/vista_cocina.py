@@ -51,14 +51,8 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         nav.grid(row=1, column=0, sticky="nsew", padx=8, pady=(12, 8))
         sidebar.grid_rowconfigure(1, weight=1)
 
-        self._nav_buttons["orders"] = self._nav_button(nav, "Orders", "orders", section="orders")
-        self._nav_buttons["orders"].grid(row=0, column=0, sticky="ew", pady=4)
         self._nav_buttons["kitchen"] = self._nav_button(nav, "Kitchen", "kitchen", section="kitchen", active=True)
-        self._nav_buttons["kitchen"].grid(row=1, column=0, sticky="ew", pady=4)
-        self._nav_buttons["inventory"] = self._nav_button(nav, "Inventory", "inventory", section="inventory")
-        self._nav_buttons["inventory"].grid(row=2, column=0, sticky="ew", pady=4)
-        self._nav_buttons["menu"] = self._nav_button(nav, "Menu", "menu", section="menu")
-        self._nav_buttons["menu"].grid(row=3, column=0, sticky="ew", pady=4)
+        self._nav_buttons["kitchen"].grid(row=0, column=0, sticky="ew", pady=4)
 
         footer = ctk.CTkFrame(sidebar, fg_color="transparent")
         footer.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 14))
