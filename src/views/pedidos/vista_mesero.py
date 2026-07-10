@@ -26,64 +26,23 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         self._center_frame: ctk.CTkFrame | None = None
         self._order_frame: ctk.CTkFrame | None = None
         self._section_frame: ctk.CTkFrame | None = None
+        self._mesa_badge_label: ctk.CTkLabel | None = None
         self._nav_buttons: dict[str, ctk.CTkButton] = {}
         self._active_section = "orders"
 
         self._build_layout()
 
     def _build_layout(self) -> None:
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_columnconfigure(2, weight=0)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=0)
         self.grid_rowconfigure(0, weight=1)
 
-        self._build_sidebar()
         self._center_frame = self._build_center_panel()
         self._order_frame = self._build_order_panel()
         self._section_frame = ctk.CTkFrame(self, fg_color="#141517", corner_radius=0)
-        self._section_frame.grid(row=0, column=1, columnspan=2, sticky="nsew")
+        self._section_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
         self._section_frame.grid_remove()
         self._show_section("orders")
-
-    def _build_sidebar(self) -> None:
-        sidebar = ctk.CTkFrame(self, fg_color="#1A0D0C", width=220, corner_radius=0)
-        sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_propagate(False)
-
-        brand = ctk.CTkFrame(sidebar, fg_color="transparent")
-        brand.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 8))
-        ctk.CTkLabel(
-            brand,
-            text="MOSCATO",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 30, "bold"),
-        ).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(
-            brand,
-            text=f"MESERO: {self.usuario.upper()}",
-            text_color="#F1C6B8",
-            font=("Segoe UI", 11, "bold"),
-        ).grid(row=0, column=1, sticky="e", padx=(8, 0))
-        ctk.CTkLabel(
-            brand,
-            text="Moscato HQ\nTerminal de Servicio B1",
-            justify="left",
-            text_color="#E7DCC3",
-            font=("Segoe UI", 11),
-        ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
-
-        spacer = ctk.CTkFrame(sidebar, fg_color="transparent")
-        spacer.grid(row=1, column=0, sticky="nsew")
-        sidebar.grid_rowconfigure(1, weight=1)
-
-        footer = ctk.CTkFrame(sidebar, fg_color="transparent")
-        footer.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 14))
-        self._nav_buttons["logout"] = self._nav_button(footer, "Logout", "logout", section="logout")
-        self._nav_buttons["logout"].grid(row=0, column=0, sticky="ew", pady=4)
-
-        sidebar.grid_columnconfigure(0, weight=1)
-        spacer.grid_columnconfigure(0, weight=1)
-        footer.grid_columnconfigure(0, weight=1)
 
     def _nav_button(
         self,
@@ -114,54 +73,99 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
     def _build_center_panel(self) -> ctk.CTkFrame:
         center = ctk.CTkFrame(self, fg_color="#16181A", corner_radius=0)
-        center.grid(row=0, column=1, sticky="nsew")
+        center.grid(row=0, column=0, sticky="nsew")
         center.grid_columnconfigure(0, weight=1)
         center.grid_rowconfigure(3, weight=1)
 
-        top = ctk.CTkFrame(center, fg_color="#201011", corner_radius=0, height=76)
+        top = ctk.CTkFrame(center, fg_color="#201011", corner_radius=0, height=102)
         top.grid(row=0, column=0, sticky="ew")
         top.grid_propagate(False)
+
+        ctk.CTkLabel(
+            top,
+            text="MOSCATO",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 20, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=14, pady=(8, 0))
 
         ctk.CTkLabel(
             top,
             text="Plano de Mesas",
             text_color="#F4EBD0",
             font=("Segoe UI", 29, "bold"),
-        ).grid(row=0, column=0, sticky="w", padx=14, pady=(10, 0))
+        ).grid(row=1, column=0, sticky="w", padx=14, pady=(0, 0))
 
         ctk.CTkLabel(
             top,
             text="Seleccione una mesa para iniciar o editar pedido",
             text_color="#E5D7BC",
             font=("Segoe UI", 11, "bold"),
-        ).grid(row=1, column=0, sticky="w", padx=14, pady=(2, 10))
+        ).grid(row=2, column=0, sticky="w", padx=14, pady=(1, 8))
 
         legend = ctk.CTkFrame(top, fg_color="transparent")
-        legend.grid(row=1, column=1, sticky="e", padx=12)
+        legend.grid(row=2, column=1, sticky="e", padx=12)
         self._legend_item(legend, "#57B85C", "LIBRE").grid(row=0, column=0, padx=8)
         self._legend_item(legend, "#D14A3E", "OCUPADA").grid(row=0, column=1, padx=8)
         self._legend_item(legend, "#E7A533", "ATENCION").grid(row=0, column=2, padx=8)
 
         mesas_wrap = ctk.CTkFrame(center, fg_color="transparent")
         mesas_wrap.grid(row=1, column=0, sticky="ew", padx=12, pady=(8, 6))
-        mesas_wrap.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        mesas_wrap.grid_columnconfigure(0, weight=1)
+
+        mesas_canvas = tk.Canvas(mesas_wrap, bg="#16181A", bd=0, highlightthickness=0, height=92)
+        mesas_canvas.grid(row=0, column=0, sticky="ew")
+
+        mesas_scroll = tk.Scrollbar(
+            mesas_wrap,
+            orient="horizontal",
+            command=mesas_canvas.xview,
+            troughcolor="#16181A",
+            bg="#16181A",
+            activebackground="#2A2324",
+            width=5,
+            highlightthickness=0,
+            bd=0,
+            relief="flat",
+        )
+        mesas_scroll.grid(row=1, column=0, sticky="ew", pady=(2, 0))
+        mesas_canvas.configure(xscrollcommand=mesas_scroll.set)
+
+        mesas_content = ctk.CTkFrame(mesas_canvas, fg_color="transparent")
+        mesas_canvas_window = mesas_canvas.create_window((0, 0), window=mesas_content, anchor="nw")
+
+        def _sync_mesas_scrollregion(_event: tk.Event | None = None) -> None:
+            mesas_canvas.configure(scrollregion=mesas_canvas.bbox("all"))
+
+        def _sync_mesas_canvas(event: tk.Event) -> None:
+            mesas_canvas.itemconfigure(mesas_canvas_window, height=event.height)
+            mesas_canvas.configure(scrollregion=mesas_canvas.bbox("all"))
+
+        mesas_content.bind("<Configure>", _sync_mesas_scrollregion)
+        mesas_canvas.bind("<Configure>", _sync_mesas_canvas)
 
         mesas = [
-            ("M1", "Ocupada", "#58312D"),
+            ("M1", "Ocupada", "#2B2525"),
             ("M2", "Libre", "#2B2525"),
             ("M3", "Libre", "#2B2525"),
-            ("M4", "Atencion", "#362D12"),
+            ("M4", "Atencion", "#2B2525"),
             ("M5", "Libre", "#2B2525"),
             ("M6", "Libre", "#2B2525"),
+            ("M7", "Libre", "#2B2525"),
+            ("M8", "Ocupada", "#2B2525"),
+            ("M9", "Libre", "#2B2525"),
+            ("M10", "Atencion", "#2B2525"),
         ]
         for idx, (mesa, estado, bg_card) in enumerate(mesas):
-            self._mesa_card(mesas_wrap, mesa, estado, bg_card).grid(row=0, column=idx, sticky="ew", padx=5, pady=2)
+            self._mesa_card(mesas_content, mesa, estado, bg_card).grid(row=0, column=idx, sticky="nw", padx=5, pady=2)
+
+        for idx in range(len(mesas)):
+            mesas_content.grid_columnconfigure(idx, weight=0)
 
         categorias = ctk.CTkFrame(center, fg_color="transparent")
         categorias.grid(row=2, column=0, sticky="ew", padx=12, pady=(4, 8))
-        categorias.grid_columnconfigure((0, 1, 2, 3, 4), weight=1)
+        categorias.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        chips = ["Chinese Food", "International", "Drinks & Bar", "Desserts", "Wines"]
+        chips = ["Comida China", "Promos", "Combos", "Bebidas"]
         for idx, chip in enumerate(chips):
             self._chip(categorias, chip, active=(idx == 0)).grid(row=0, column=idx, sticky="ew", padx=4)
 
@@ -175,13 +179,53 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         return wrap
 
     def _mesa_card(self, parent: tk.Misc, mesa: str, estado: str, bg_card: str) -> ctk.CTkFrame:
-        border = "#D49A2B" if estado == "Atencion" else "#3A3030"
-        card = ctk.CTkFrame(parent, fg_color=bg_card, border_color=border, border_width=1, corner_radius=6, height=72)
-        card.grid_propagate(False)
+        border = "#3A3030"
+        hover_bg = "#3A3030"
+        card = ctk.CTkFrame(
+            parent,
+            fg_color=bg_card,
+            border_color=border,
+            border_width=1,
+            corner_radius=6,
+            height=72,
+            width=176,
+        )
+        card.pack_propagate(False)
+        card.configure(cursor="hand2")
 
-        ctk.CTkLabel(card, text=mesa, text_color="#F3E6CC", font=("Segoe UI", 26, "bold")).pack(anchor="w", padx=10, pady=(8, 0))
-        ctk.CTkLabel(card, text=estado, text_color="#F3E6CC", font=("Segoe UI", 11, "bold")).pack(anchor="w", padx=10, pady=(1, 8))
+        mesa_label = ctk.CTkLabel(card, text=mesa, text_color="#F3E6CC", font=("Segoe UI", 26, "bold"))
+        mesa_label.pack(anchor="w", padx=10, pady=(8, 0))
+
+        estado_label = ctk.CTkLabel(card, text=estado, text_color="#F3E6CC", font=("Segoe UI", 11, "bold"))
+        estado_label.pack(anchor="w", padx=10, pady=(1, 8))
+
+        def _on_click(_event: tk.Event | None = None) -> None:
+            self._select_mesa(mesa)
+
+        def _on_enter(_event: tk.Event | None = None) -> None:
+            card.configure(fg_color=hover_bg)
+
+        def _on_leave(_event: tk.Event | None = None) -> None:
+            card.configure(fg_color=bg_card)
+
+        for widget in (card, mesa_label, estado_label):
+            widget.bind("<Button-1>", _on_click)
+            widget.bind("<Enter>", _on_enter)
+            widget.bind("<Leave>", _on_leave)
         return card
+
+    def _normalize_mesa_text(self, mesa: str) -> str:
+        value = str(mesa).strip().upper()
+        if value.startswith("MESA "):
+            return value
+        if value.startswith("M") and value[1:].isdigit():
+            return f"MESA {value[1:]}"
+        return value
+
+    def _select_mesa(self, mesa: str) -> None:
+        self.mesa_actual = self._normalize_mesa_text(mesa)
+        if self._mesa_badge_label is not None:
+            self._mesa_badge_label.configure(text=self.mesa_actual)
 
     def _chip(self, parent: tk.Misc, text: str, active: bool = False) -> ctk.CTkButton:
         bg = "#8C1A11" if active else "#3A2B2A"
@@ -308,49 +352,39 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
     def _build_order_panel(self) -> ctk.CTkFrame:
         side = ctk.CTkFrame(self, fg_color="#2A1718", width=320, corner_radius=0)
-        side.grid(row=0, column=2, sticky="nsew")
+        side.grid(row=0, column=1, sticky="nsew")
         side.grid_propagate(False)
 
         header = ctk.CTkFrame(side, fg_color="transparent")
         header.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 10))
+        header.grid_columnconfigure(0, weight=1)
         ctk.CTkLabel(header, text="Pedido Actual", text_color="#F4EBD0", font=("Segoe UI", 29, "bold")).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(
+        self._mesa_badge_label = ctk.CTkLabel(
             header,
-            text=self.mesa_actual.upper(),
+            text=self._normalize_mesa_text(self.mesa_actual),
             text_color="#3A1E18",
             fg_color="#E8A995",
             corner_radius=10,
             font=("Segoe UI", 9, "bold"),
             padx=9,
             pady=3,
-        ).grid(row=0, column=1, sticky="e", padx=(12, 0))
-        ctk.CTkLabel(header, text="TICKET #84291", text_color="#D6C9A8", font=("Segoe UI", 11, "bold")).grid(
-            row=1, column=0, sticky="w", pady=(4, 0)
         )
+        self._mesa_badge_label.grid(row=0, column=1, sticky="e", padx=(12, 0))
+        ctk.CTkLabel(header, text="TICKET #84291", text_color="#D6C9A8", font=("Segoe UI", 11, "bold")).grid(row=1, column=0, sticky="w", pady=(4, 0))
 
         item_wrap = ctk.CTkFrame(side, fg_color="transparent")
         item_wrap.grid(row=1, column=0, sticky="nsew", padx=14)
         side.grid_rowconfigure(1, weight=1)
 
-        sample_items = [
-            ("Pollo Kung Pao", "01", "$18.50"),
-            ("Arroz Yangzhou", "01", "$14.00"),
-            ("Cerveza Tsingtao", "02", "$12.00"),
-        ]
-        for idx, (nombre, cantidad, subtotal) in enumerate(sample_items):
-            self._order_item(item_wrap, nombre, cantidad, subtotal).grid(row=idx, column=0, sticky="ew", pady=8)
-
-        notes = self._preparation_notes_section(side)
-        notes.grid(row=2, column=0, sticky="ew", padx=14, pady=(2, 8))
-
-        totals = ctk.CTkFrame(side, fg_color="transparent")
-        totals.grid(row=3, column=0, sticky="ew", padx=14, pady=(4, 8))
-        self._total_row(totals, "Subtotal", "$44.50").grid(row=0, column=0, sticky="ew", pady=2)
-        self._total_row(totals, "Servicio (10%)", "$4.45").grid(row=1, column=0, sticky="ew", pady=2)
-        self._total_row(totals, "TOTAL", "$48.95", strong=True).grid(row=2, column=0, sticky="ew", pady=(8, 2))
+        ctk.CTkLabel(
+            item_wrap,
+            text="Sin productos en el pedido",
+            text_color="#D6C9A8",
+            font=("Segoe UI", 12, "bold"),
+        ).pack(anchor="w", pady=(4, 0))
 
         actions = ctk.CTkFrame(side, fg_color="transparent")
-        actions.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 14))
+        actions.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 14))
         actions.grid_columnconfigure((0, 1), weight=1)
 
         ctk.CTkButton(
@@ -388,6 +422,25 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             font=("Segoe UI", 12, "bold"),
             command=lambda: None,
         ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+
+        footer = ctk.CTkFrame(side, fg_color="transparent")
+        footer.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
+        footer.grid_columnconfigure(0, weight=1)
+        self._nav_buttons["logout"] = ctk.CTkButton(
+            footer,
+            text="  Salir",
+            image=self._make_icon("logout", "#F4EBD0"),
+            compound="left",
+            anchor="w",
+            corner_radius=8,
+            fg_color="#1A0D0C",
+            hover_color="#2A1A18",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            height=34,
+            command=lambda s="logout": self._show_section(s),
+        )
+        self._nav_buttons["logout"].grid(row=0, column=0, sticky="w")
 
         side.grid_columnconfigure(0, weight=1)
         return side
