@@ -72,28 +72,17 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             font=("Segoe UI", 11),
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
-        nav = ctk.CTkFrame(sidebar, fg_color="transparent")
-        nav.grid(row=1, column=0, sticky="nsew", padx=8, pady=(12, 8))
+        spacer = ctk.CTkFrame(sidebar, fg_color="transparent")
+        spacer.grid(row=1, column=0, sticky="nsew")
         sidebar.grid_rowconfigure(1, weight=1)
-
-        self._nav_buttons["orders"] = self._nav_button(nav, "Orders", "orders", section="orders", active=True)
-        self._nav_buttons["orders"].grid(row=0, column=0, sticky="ew", pady=4)
-        self._nav_buttons["kitchen"] = self._nav_button(nav, "Kitchen", "kitchen", section="kitchen")
-        self._nav_buttons["kitchen"].grid(row=1, column=0, sticky="ew", pady=4)
-        self._nav_buttons["inventory"] = self._nav_button(nav, "Inventory", "inventory", section="inventory")
-        self._nav_buttons["inventory"].grid(row=2, column=0, sticky="ew", pady=4)
-        self._nav_buttons["menu"] = self._nav_button(nav, "Menu", "menu", section="menu")
-        self._nav_buttons["menu"].grid(row=3, column=0, sticky="ew", pady=4)
 
         footer = ctk.CTkFrame(sidebar, fg_color="transparent")
         footer.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 14))
-        self._nav_buttons["help"] = self._nav_button(footer, "Help", "help", section="help")
-        self._nav_buttons["help"].grid(row=0, column=0, sticky="ew", pady=4)
         self._nav_buttons["logout"] = self._nav_button(footer, "Logout", "logout", section="logout")
-        self._nav_buttons["logout"].grid(row=1, column=0, sticky="ew", pady=4)
+        self._nav_buttons["logout"].grid(row=0, column=0, sticky="ew", pady=4)
 
         sidebar.grid_columnconfigure(0, weight=1)
-        nav.grid_columnconfigure(0, weight=1)
+        spacer.grid_columnconfigure(0, weight=1)
         footer.grid_columnconfigure(0, weight=1)
 
     def _nav_button(
