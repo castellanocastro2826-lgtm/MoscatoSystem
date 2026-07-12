@@ -9,6 +9,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
     def __init__(self, master: tk.Misc, usuario: str, mesa_actual: str = "Mesa 1") -> None:
         super().__init__(master)
+        self.parent = master
         self.title("Terminal de Mesero - Toma de Pedidos")
         self.geometry("1320x780")
         self.minsize(1180, 680)
@@ -450,7 +451,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         self._update_nav_state()
 
         if section == "logout":
-            self.destroy()
+            self._logout_to_login()
             return
 
         if section == "orders":
@@ -516,6 +517,11 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 fg_color="#9E1F14" if is_active else "#1A0D0C",
                 hover_color="#B52619" if is_active else "#2A1A18",
             )
+
+    def _logout_to_login(self) -> None:
+        self.destroy()
+        if self.parent is not None and self.parent.winfo_exists():
+            self.parent.deiconify()
 
     def _preparation_notes_section(self, parent: tk.Misc) -> ctk.CTkFrame:
         section = ctk.CTkFrame(parent, fg_color="#241516", border_color="#4A3131", border_width=1, corner_radius=8)

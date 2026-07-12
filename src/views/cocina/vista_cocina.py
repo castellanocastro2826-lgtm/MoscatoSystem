@@ -1,5 +1,4 @@
 import tkinter as tk
-
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
 
@@ -9,6 +8,7 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
     def __init__(self, master: tk.Misc, usuario: str = "Cocina Central") -> None:
         super().__init__(master)
+        self.parent = master
         self.title("Monitor de Cocina - Pedidos Activos")
         self.geometry("1320x780")
         self.minsize(980, 680)
@@ -31,45 +31,15 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         self._build_layout()
 
     def _build_layout(self) -> None:
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        self._build_sidebar()
         self._build_main_panel()
         self._show_section("kitchen")
 
-    def _build_sidebar(self) -> None:
-        sidebar = ctk.CTkFrame(self, fg_color="#1A0D0C", width=220, corner_radius=0)
-        sidebar.grid(row=0, column=0, sticky="nsew")
-        sidebar.grid_propagate(False)
-
-        brand = ctk.CTkFrame(sidebar, fg_color="transparent")
-        brand.grid(row=0, column=0, sticky="ew", padx=16, pady=(16, 8))
-        ctk.CTkLabel(brand, text="MOSCATO HQ", text_color="#F4EBD0", font=("Segoe UI", 28, "bold")).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(brand, text="Terminal B1", text_color="#E5D7BC", font=("Segoe UI", 11)).grid(row=1, column=0, sticky="w", pady=(2, 0))
-
-        nav = ctk.CTkFrame(sidebar, fg_color="transparent")
-        nav.grid(row=1, column=0, sticky="nsew", padx=8, pady=(12, 8))
-        sidebar.grid_rowconfigure(1, weight=1)
-
-        self._nav_buttons["kitchen"] = self._nav_button(nav, "Kitchen", "kitchen", section="kitchen", active=True)
-        self._nav_buttons["kitchen"].grid(row=0, column=0, sticky="ew", pady=4)
-
-        footer = ctk.CTkFrame(sidebar, fg_color="transparent")
-        footer.grid(row=2, column=0, sticky="ew", padx=8, pady=(4, 14))
-        self._nav_buttons["help"] = self._nav_button(footer, "Help", "help", section="help")
-        self._nav_buttons["help"].grid(row=0, column=0, sticky="ew", pady=4)
-        self._nav_buttons["logout"] = self._nav_button(footer, "Logout", "logout", section="logout")
-        self._nav_buttons["logout"].grid(row=1, column=0, sticky="ew", pady=4)
-
-        sidebar.grid_columnconfigure(0, weight=1)
-        nav.grid_columnconfigure(0, weight=1)
-        footer.grid_columnconfigure(0, weight=1)
-
     def _build_main_panel(self) -> None:
         self._main_frame = ctk.CTkFrame(self, fg_color="#180C0D", corner_radius=0)
-        self._main_frame.grid(row=0, column=1, sticky="nsew")
+        self._main_frame.grid(row=0, column=0, sticky="nsew")
         self._main_frame.grid_columnconfigure(0, weight=1)
         self._main_frame.grid_rowconfigure(0, weight=1)
 
@@ -127,7 +97,7 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         ).pack(anchor="w", padx=24)
 
     def _build_header(self, parent: tk.Misc) -> None:
-        header = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0, height=30)
+        header = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0, height=50)
         header.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(8, 2))
         header.grid_propagate(False)
 
@@ -135,26 +105,22 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         ctk.CTkFrame(header, fg_color="#7A3931", width=2, height=38, corner_radius=0).pack(side="left", padx=8, pady=10)
         ctk.CTkLabel(header, text=self.usuario, text_color="#F09F86", font=("Segoe UI", 20, "bold")).pack(side="left")
 
-        tools = ctk.CTkFrame(header, fg_color="#221214", corner_radius=8)
-        tools.pack(side="right", padx=(8, 0), pady=6)
-
-        ctk.CTkLabel(
-            tools,
-            text="  ONLINE  ",
-            image=self._make_icon("status", "#7ED957", size=12),
+        # Botón de Salir - Ahora limpio en el extremo derecho superior
+        self._nav_buttons["logout"] = ctk.CTkButton(
+            header,
+            text="Salir",
+            image=self._make_icon("logout", "#F4EBD0", size=14),
             compound="left",
-            fg_color="#332021",
+            fg_color="#8C1A11",
+            hover_color="#A1241A",
             text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            width=90,
+            height=34,
             corner_radius=8,
-            font=("Segoe UI", 9, "bold"),
-            padx=8,
-            pady=3,
-        ).pack(side="left", padx=(6, 10), pady=4)
-
-        for icon_name in ["wifi", "bell", "user"]:
-            ctk.CTkLabel(tools, text="", image=self._make_icon(icon_name, "#F4EBD0", size=16), fg_color="transparent").pack(
-                side="left", padx=4
-            )
+            command=lambda: self._show_section("logout")
+        )
+        self._nav_buttons["logout"].pack(side="right", padx=(8, 8), pady=8)
 
     def _build_stats(self, parent: tk.Misc) -> None:
         self._stat_labels = {}
@@ -204,12 +170,11 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         host.grid_columnconfigure(0, weight=1)
         host.grid_rowconfigure(0, weight=1)
 
+        # Canvas ocupa todo el espacio del host de forma limpia
         canvas = tk.Canvas(host, bg="#180C0D", bd=0, highlightthickness=0)
         canvas.grid(row=0, column=0, sticky="nsew")
 
-        scrollbar = tk.Scrollbar(host, orient="vertical", command=canvas.yview)
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # SE ELIMINÓ EL COMPONENTE TK.SCROLLBAR DE ESTA SECCIÓN
 
         content = ctk.CTkFrame(canvas, fg_color="#180C0D", corner_radius=0)
         self._board_window_id = canvas.create_window((0, 0), window=content, anchor="nw")
@@ -240,7 +205,6 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             card.configure(width=300, height=360)
 
         self.scroll_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="columna_estricta")
-
         self._update_board_scrollregion()
 
     def _schedule_board_layout(self, _event: tk.Event | None = None) -> None:
@@ -251,7 +215,6 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
     def _on_board_canvas_configure(self, event: tk.Event) -> None:
         if self._board_canvas is not None and self._board_window_id is not None:
-            # Bloquea el ancho del frame interno al ancho visible del canvas para evitar desbordes laterales.
             self._board_canvas.itemconfigure(self._board_window_id, width=event.width)
         self._schedule_board_layout()
 
@@ -374,39 +337,12 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
         self._layout_board_cards()
 
-    def _nav_button(
-        self,
-        parent: tk.Misc,
-        text: str,
-        icon_name: str,
-        section: str,
-        active: bool = False,
-    ) -> ctk.CTkButton:
-        bg = "#9E1F14" if active else "#1A0D0C"
-        hover = "#B52619" if active else "#2A1A18"
-        icon = self._make_icon(icon_name, "#F4EBD0")
-
-        return ctk.CTkButton(
-            parent,
-            text=f"  {text}",
-            image=icon,
-            compound="left",
-            anchor="w",
-            fg_color=bg,
-            hover_color=hover,
-            text_color="#F4EBD0",
-            corner_radius=8,
-            font=("Segoe UI", 14, "bold"),
-            height=42,
-            command=lambda s=section: self._show_section(s),
-        )
-
     def _show_section(self, section: str) -> None:
         self._active_section = section
         self._update_nav_state()
 
         if section == "logout":
-            self.destroy()
+            self._logout_to_login()
             return
 
         if self._main_frame is None:
@@ -422,11 +358,18 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
     def _update_nav_state(self) -> None:
         for section, button in self._nav_buttons.items():
+            if section == "logout":
+                continue
             is_active = section == self._active_section
             button.configure(
                 fg_color="#9E1F14" if is_active else "#1A0D0C",
                 hover_color="#B52619" if is_active else "#2A1A18",
             )
+
+    def _logout_to_login(self) -> None:
+        self.destroy()
+        if self.parent is not None and self.parent.winfo_exists():
+            self.parent.deiconify()
 
     def _make_icon(self, name: str, color: str, size: int = 18) -> ImageTk.PhotoImage:
         image = Image.new("RGBA", (size, size), (0, 0, 0, 0))

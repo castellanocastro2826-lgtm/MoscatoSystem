@@ -9,8 +9,10 @@ import mysql.connector
 from mysql.connector import Error
 
 from src.controllers.cocina.controlador_cocina import ControladorCocina
+from src.controllers.admin.controlador_admin import ControladorAdmin
 from src.models.cocina.modelo_cocina import ModeloCocina
 from src.views.cocina.vista_cocina import CocinaDesignWindow
+from src.views.admin.vista_admin import UnifiedDashboardWindow
 from src.views.pedidos.vista_mesero import MeseroDesignWindow
 
 
@@ -194,7 +196,11 @@ class LoginWindow(ctk.CTk):
         rol = str(user.get("rol", "")).strip().lower()
         nombre_real = str(user.get("nombre", "")).strip()
 
-        if rol == "cocinero":
+        if rol == "administrador":
+            vista = UnifiedDashboardWindow(self, usuario=nombre_real)
+            ControladorAdmin(vista)
+            vista.protocol("WM_DELETE_WINDOW", self.destroy)
+        elif rol == "cocinero":
             modelo = ModeloCocina()
             vista = CocinaDesignWindow(self, usuario=nombre_real)
             controlador = ControladorCocina(vista, modelo)
