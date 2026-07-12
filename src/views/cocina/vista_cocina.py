@@ -174,7 +174,20 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         canvas = tk.Canvas(host, bg="#180C0D", bd=0, highlightthickness=0)
         canvas.grid(row=0, column=0, sticky="nsew")
 
-        # SE ELIMINÓ EL COMPONENTE TK.SCROLLBAR DE ESTA SECCIÓN
+        scrollbar = tk.Scrollbar(
+            host,
+            orient="vertical",
+            command=canvas.yview,
+            troughcolor="#180C0D",
+            bg="#16181A",
+            activebackground="#2A2324",
+            width=5,
+            highlightthickness=0,
+            bd=0,
+            relief="flat",
+        )
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
         content = ctk.CTkFrame(canvas, fg_color="#180C0D", corner_radius=0)
         self._board_window_id = canvas.create_window((0, 0), window=content, anchor="nw")
@@ -189,6 +202,7 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         content.bind("<Configure>", self._update_board_scrollregion)
         canvas.bind("<Configure>", self._on_board_canvas_configure)
         host.bind("<Configure>", self._schedule_board_layout)
+        canvas.bind_all("<MouseWheel>", self._on_board_mousewheel)
         self._ticket_cards.clear()
         self.after_idle(self._layout_board_cards)
 
@@ -221,6 +235,10 @@ class CocinaDesignWindow(ctk.CTkToplevel):
     def _update_board_scrollregion(self, _event: tk.Event | None = None) -> None:
         if self._board_canvas is not None:
             self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))
+
+    def _on_board_mousewheel(self, event: tk.Event) -> None:
+        if self._board_canvas is not None and self.winfo_exists():
+            self._board_canvas.yview_scroll(int(-event.delta / 120), "units")
 
     def _kitchen_ticket(self, parent: tk.Misc, data: dict, callback_notificar) -> ctk.CTkFrame:
         card = ctk.CTkFrame(
