@@ -11,7 +11,7 @@ class ModeloCocina:
     def __init__(self) -> None:
         self._db_config = {
             "host": os.getenv("DB_HOST", "127.0.0.1"),
-            "port": int(os.getenv("DB_PORT", "3396")),
+            "port": int(os.getenv("DB_PORT", "3306")),
             "user": os.getenv("DB_USER", "root"),
             "password": os.getenv("DB_PASSWORD", ""),
             "database": os.getenv("DB_NAME", "moscato_db"),
@@ -29,6 +29,7 @@ class ModeloCocina:
         sql = """
             SELECT
                 dp.id_detalle,
+                p.id_pedido,
                 CASE
                     WHEN p.id_mesa IS NULL OR p.tipo_pedido = 'Para llevar' THEN 'Para llevar'
                     ELSE CAST(m.numero_mesa AS CHAR)
@@ -45,7 +46,7 @@ class ModeloCocina:
                 ON pr.id_producto = dp.id_producto
             LEFT JOIN mesas m
                 ON m.id_mesa = p.id_mesa
-            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación')
+            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo')
             ORDER BY dp.fecha_envio_cocina ASC, dp.id_detalle ASC
         """
 
@@ -77,5 +78,34 @@ class ModeloCocina:
         except Error as exc:
             connection.rollback()
             raise RuntimeError(f"Error actualizando estado del item: {exc}") from exc
+        finally:
+            connection.close()
+
+    def actualizar_estado_pedido(self, id_pedido: int, nuevo_estado_item: str, nuevo_estado_pedido: str | None = None) -> bool:
+        """Actualiza estado de todos los items de un pedido y opcionalmente el estado global del pedido."""
+        sql_items = """
+            UPDATE detalle_pedido
+            SET estado_item = %s
+            WHERE id_pedido = %s
+              AND estado_item NOT IN ('Cancelado', 'Servido')
+        """
+        sql_pedido = """
+            UPDATE pedidos
+            SET estado_pedido = %s
+            WHERE id_pedido = %s
+        """
+
+        connection = self._connect()
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(sql_items, (nuevo_estado_item, id_pedido))
+                if nuevo_estado_pedido is not None:
+                    cursor.execute(sql_pedido, (nuevo_estado_pedido, id_pedido))
+                actualizado = cursor.rowcount >= 0
+            connection.commit()
+            return actualizado
+        except Error as exc:
+            connection.rollback()
+            raise RuntimeError(f"Error actualizando estado del pedido: {exc}") from exc
         finally:
             connection.close()

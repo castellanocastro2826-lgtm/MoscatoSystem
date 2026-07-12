@@ -234,7 +234,7 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         )
         card.grid_propagate(False)
 
-        header_color = "#6A0E0E" if data["estado"] in {"CRITICO", "DEMORADO"} else "#4B360F"
+        header_color = data.get("header_bg", "#4B360F")
         head = ctk.CTkFrame(card, fg_color=header_color, corner_radius=6)
         head.pack(fill="x", padx=4, pady=4)
         head.grid_columnconfigure(0, weight=1)
@@ -244,7 +244,14 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             row=0, column=0, sticky="w", padx=8, pady=(5, 0)
         )
 
-        mesa_color = "#FFB000" if data["estado"] not in {"CRITICO", "DEMORADO"} else "#FF5B5B"
+        ctk.CTkLabel(
+            head,
+            text=f"TICKET #{int(data.get('id_pedido', 0)):05d}",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 9, "bold"),
+        ).grid(row=0, column=1, sticky="e", padx=8, pady=(5, 0))
+
+        mesa_color = "#FFB000" if data["estado"] != "ENVIADO A COCINA" else "#FF7C7C"
         ctk.CTkLabel(head, text=data["mesa"], text_color=mesa_color, font=("Segoe UI", 33, "bold")).grid(
             row=1, column=0, sticky="w", padx=8, pady=(0, 6)
         )
@@ -310,15 +317,16 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
         ctk.CTkButton(
             card,
-            text="NOTIFICAR AL MESERO",
+            text=data.get("accion_texto", "EN PREPARACION"),
             image=self._make_icon("check", "#F4EBD0", size=14),
             compound="left",
-            fg_color="#49A54A",
-            hover_color="#5EB95E",
+            fg_color=data.get("accion_bg", "#49A54A"),
+            hover_color=data.get("accion_hover", "#5EB95E"),
             text_color="#F4EBD0",
             font=("Segoe UI", 12, "bold"),
             height=38,
-            command=lambda id_det=data["id_detalle"]: callback_notificar(id_det),
+            state="normal" if data.get("accion_habilitada", True) else "disabled",
+            command=lambda id_p=data.get("id_pedido", 0), s=data.get("siguiente_estado", "En preparación"): callback_notificar(id_p, s),
         ).pack(side="bottom", fill="x", padx=10, pady=10)
 
         return card

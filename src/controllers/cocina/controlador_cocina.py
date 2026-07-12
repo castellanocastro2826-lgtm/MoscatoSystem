@@ -32,9 +32,11 @@ class ControladorCocina:
         )
         self.vista.after(10000, self.actualizar_pantalla)
 
-    def al_hacer_clic_en_listo(self, id_detalle: int) -> None:
-        """Despacha el item pulsado y refresca la pantalla de inmediato."""
-        self.modelo.actualizar_estado_item(id_detalle, "Listo")
+    def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
+        """Avanza el estado del pedido completo y refresca la pantalla."""
+        estado_item = "En preparación" if siguiente_estado == "En preparación" else "Listo"
+        estado_pedido = "En cocina" if siguiente_estado == "En preparación" else "Listo"
+        self.modelo.actualizar_estado_pedido(id_pedido, estado_item, estado_pedido)
         self.actualizar_pantalla()
 
     def _agrupar_items_a_tarjetas(self, filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -48,14 +50,21 @@ class ControladorCocina:
 
             if llave not in grupos:
                 grupos[llave] = {
-                    "id_detalle": int(fila.get("id_detalle") or 0),
+                    "id_pedido": int(fila.get("id_pedido") or 0),
                     "mesa": self._normalizar_mesa(numero_mesa),
                     "tiempo": self._formatear_hora(fila.get("fecha_envio_cocina")),
-                    "estado": "PENDIENTE",
-                    "estado_bg": "#C49315",
-                    "borde": "#B8891D",
+                    "estado": "ENVIADO A COCINA",
+                    "header_bg": "#6A0E0E",
+                    "estado_bg": "#8E1D1D",
+                    "borde": "#A12A2A",
+                    "accion_texto": "EN PREPARACION",
+                    "accion_bg": "#49A54A",
+                    "accion_hover": "#5EB95E",
+                    "siguiente_estado": "En preparación",
+                    "accion_habilitada": True,
                     "items": [],
                     "detalle": "",
+                    "_estados": set(),
                 }
 
             cantidad = int(fila.get("cantidad") or 1)
@@ -66,9 +75,45 @@ class ControladorCocina:
             if detalle and not grupos[llave]["detalle"]:
                 grupos[llave]["detalle"] = detalle
 
+            estado_item = self._normalizar_estado(str(fila.get("estado_item") or ""))
+            grupos[llave]["_estados"].add(estado_item)
+
             hora_envio = self._formatear_hora(fila.get("fecha_envio_cocina"))
             if hora_envio and hora_envio < grupos[llave]["tiempo"]:
                 grupos[llave]["tiempo"] = hora_envio
+
+        for grupo in grupos.values():
+            estados = grupo.pop("_estados", set())
+            if "listo" in estados:
+                grupo["estado"] = "LISTO"
+                grupo["header_bg"] = "#1F5D35"
+                grupo["estado_bg"] = "#2E8F48"
+                grupo["borde"] = "#49A54A"
+                grupo["accion_texto"] = "PEDIDO LISTO"
+                grupo["accion_bg"] = "#2E8F48"
+                grupo["accion_hover"] = "#3EA35A"
+                grupo["siguiente_estado"] = "Listo"
+                grupo["accion_habilitada"] = False
+            elif "en preparacion" in estados:
+                grupo["estado"] = "EN PREPARACION"
+                grupo["header_bg"] = "#5B430E"
+                grupo["estado_bg"] = "#C49315"
+                grupo["borde"] = "#D3A437"
+                grupo["accion_texto"] = "PEDIDO LISTO"
+                grupo["accion_bg"] = "#C49315"
+                grupo["accion_hover"] = "#D9AB33"
+                grupo["siguiente_estado"] = "Listo"
+                grupo["accion_habilitada"] = True
+            else:
+                grupo["estado"] = "ENVIADO A COCINA"
+                grupo["header_bg"] = "#6A0E0E"
+                grupo["estado_bg"] = "#8E1D1D"
+                grupo["borde"] = "#A12A2A"
+                grupo["accion_texto"] = "EN PREPARACION"
+                grupo["accion_bg"] = "#49A54A"
+                grupo["accion_hover"] = "#5EB95E"
+                grupo["siguiente_estado"] = "En preparación"
+                grupo["accion_habilitada"] = True
 
         return list(grupos.values())
 

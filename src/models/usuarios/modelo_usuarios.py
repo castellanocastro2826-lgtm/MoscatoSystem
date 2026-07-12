@@ -17,7 +17,7 @@ class ModeloUsuarios:
     def __init__(self, db_config: dict[str, Any] | None = None) -> None:
         self._db_config = db_config or {
             "host": os.getenv("DB_HOST", "127.0.0.1"),
-            "port": int(os.getenv("DB_PORT", "3396")),
+            "port": int(os.getenv("DB_PORT", "3306")),
             "user": os.getenv("DB_USER", "root"),
             "password": os.getenv("DB_PASSWORD", ""),
             "database": os.getenv("DB_NAME", "moscato_db"),
