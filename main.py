@@ -12,7 +12,6 @@ from src.controllers.cocina.controlador_cocina import ControladorCocina
 from src.models.cocina.modelo_cocina import ModeloCocina
 from src.views.cocina.vista_cocina import CocinaDesignWindow
 from src.views.pedidos.vista_mesero import MeseroDesignWindow
-from src.views.vista_unificada import UnifiedDashboardWindow
 
 
 ctk.set_appearance_mode("dark")
@@ -23,7 +22,7 @@ class DatabaseConnection:
     def __init__(self) -> None:
         self.config = {
             "host": os.getenv("DB_HOST", "127.0.0.1"),
-            "port": int(os.getenv("DB_PORT", "3306")),
+            "port": int(os.getenv("DB_PORT", "3396")),
             "user": os.getenv("DB_USER", "root"),
             "password": os.getenv("DB_PASSWORD", ""),
             "database": os.getenv("DB_NAME", "moscato_db"),
@@ -191,11 +190,23 @@ class LoginWindow(ctk.CTk):
             messagebox.showerror("Error", f"No se pudo validar el usuario: {exc}")
 
     def _open_dashboard(self, user: dict) -> None:
-        rol = str(user.get("rol", "")).strip().lower()
-        initial_section = "kitchen" if rol == "cocinero" else "orders"
         self.withdraw()
-        dashboard = UnifiedDashboardWindow(self, usuario=user["nombre"], initial_section=initial_section, rol=rol)
-        dashboard.protocol("WM_DELETE_WINDOW", self.destroy)
+        rol = str(user.get("rol", "")).strip().lower()
+        nombre_real = str(user.get("nombre", "")).strip()
+
+        if rol == "cocinero":
+            modelo = ModeloCocina()
+            vista = CocinaDesignWindow(self, usuario=nombre_real)
+            controlador = ControladorCocina(vista, modelo)
+            vista.controlador = controlador
+            controlador.actualizar_pantalla()
+            vista.protocol("WM_DELETE_WINDOW", self.destroy)
+        elif rol == "mesonero":
+            vista = MeseroDesignWindow(self, usuario=nombre_real)
+            vista.protocol("WM_DELETE_WINDOW", self.destroy)
+        else:
+            vista = MeseroDesignWindow(self, usuario=nombre_real)
+            vista.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def _open_mesero_design_demo(self) -> None:
         self.withdraw()
