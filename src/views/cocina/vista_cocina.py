@@ -27,6 +27,7 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         self._active_section = "kitchen"
         self._main_frame: ctk.CTkFrame | None = None
         self._stat_labels: dict[str, ctk.CTkLabel] = {}
+        self.controlador = None
 
         self._build_layout()
 
@@ -393,9 +394,19 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             )
 
     def _logout_to_login(self) -> None:
+        controlador = getattr(self, "controlador", None)
+        if controlador is not None and hasattr(controlador, "desactivar"):
+            controlador.desactivar()
         self.destroy()
         if self.parent is not None and self.parent.winfo_exists():
             self.parent.deiconify()
+
+    def destroy(self) -> None:
+        controlador = getattr(self, "controlador", None)
+        if controlador is not None and hasattr(controlador, "desactivar"):
+            controlador.desactivar()
+            self.controlador = None
+        super().destroy()
 
     def _make_icon(self, name: str, color: str, size: int = 18) -> ImageTk.PhotoImage:
         image = Image.new("RGBA", (size, size), (0, 0, 0, 0))

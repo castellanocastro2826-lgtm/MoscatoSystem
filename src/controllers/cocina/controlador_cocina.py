@@ -4,6 +4,7 @@ from datetime import datetime
 import unicodedata
 from typing import Any
 
+from src.core.event_bus import event_bus
 from src.models.cocina.modelo_cocina import ModeloCocina
 from src.views.cocina.vista_cocina import CocinaDesignWindow
 
@@ -14,15 +15,14 @@ class ControladorCocina:
     def __init__(self, vista: CocinaDesignWindow, modelo: ModeloCocina | None = None) -> None:
         self.vista = vista
         self.modelo = modelo or ModeloCocina()
+        self._evento_pedido_creado = self._on_pedido_creado
+        event_bus.subscribe("pedido.creado", self._evento_pedido_creado)
 
     def actualizar_pantalla(self) -> None:
-        """Consulta pedidos reales, actualiza vista y programa refresco automatico."""
-        print("Iniciando consulta de pedidos activos...")
+        """Consulta pedidos reales y actualiza la vista."""
         pedidos_reales = self.modelo.obtener_pedidos_activos()
-        print("Datos crudos del modelo:", pedidos_reales)
         pedidos_activos, tiempo_promedio, en_prep, pendientes = self._calcular_estadisticas(pedidos_reales)
         datos_mapeados = self._agrupar_items_a_tarjetas(pedidos_reales)
-        print("Datos mapeados para la vista:", datos_mapeados)
         self.vista.actualizar_monitor(datos_mapeados, self.al_hacer_clic_en_listo)
         self.vista.actualizar_estadisticas(
             pedidos_activos=pedidos_activos,
@@ -30,14 +30,29 @@ class ControladorCocina:
             en_prep=en_prep,
             pendientes=pendientes,
         )
-        self.vista.after(10000, self.actualizar_pantalla)
 
     def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
         """Avanza el estado del pedido completo y refresca la pantalla."""
         estado_item = "En preparación" if siguiente_estado == "En preparación" else "Listo"
         estado_pedido = "En cocina" if siguiente_estado == "En preparación" else "Listo"
         self.modelo.actualizar_estado_pedido(id_pedido, estado_item, estado_pedido)
+        event_bus.emit(
+            "pedido.listo",
+            {
+                "id_pedido": id_pedido,
+                "estado_item": estado_item,
+                "estado_pedido": estado_pedido,
+            },
+        )
         self.actualizar_pantalla()
+
+    def desactivar(self) -> None:
+        event_bus.unsubscribe("pedido.creado", self._evento_pedido_creado)
+
+    def _on_pedido_creado(self, evento: dict[str, Any]) -> None:
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+        self.vista.after(0, self.actualizar_pantalla)
 
     def _agrupar_items_a_tarjetas(self, filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Agrupa filas por id_pedido (si existe) o por numero_mesa para renderizar una tarjeta por pedido."""

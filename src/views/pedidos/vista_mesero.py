@@ -7,6 +7,14 @@ import mysql.connector
 from mysql.connector import Error
 from PIL import Image, ImageDraw, ImageTk
 
+from src.core.event_bus import event_bus
+from src.controllers.mesas.controlador_mesas import MesasController
+from src.controllers.pedidos.controlador_pedido_actual import ControladorPedidoActual
+from src.models.mesas.modelo_mesas import MesasModel
+from src.models.pedidos.modelo_pedido_actual import ModeloPedidoActual
+from src.views.mesas.vista_mesas import MesasView
+from src.views.pedidos.vista_pedido_actual import VistaPedidoActual
+
 
 class MeseroDesignWindow(ctk.CTkToplevel):
     """Vista de referencia del terminal de mesero (solo diseno UI)."""
@@ -40,7 +48,14 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         self._pedido_vacio_label: ctk.CTkLabel | None = None
         self._categoria_botones: dict[str, ctk.CTkButton] = {}
         self._categoria_actual = "Comida China"
-        self._pedido_actual: list[dict[str, float | str]] = []
+        self._pedido_actual_model: ModeloPedidoActual | None = None
+        self._pedido_actual_view: VistaPedidoActual | None = None
+        self._pedido_actual_controller: ControladorPedidoActual | None = None
+        self._mesas_model: MesasModel | None = None
+        self._mesas_view: MesasView | None = None
+        self._mesas_controller: MesasController | None = None
+        self._mesa_seleccionada_id: int | None = None
+        self._mesas_por_id: dict[int, dict[str, object]] = {}
         self._ordenes_pendientes: list[dict[str, object]] = []
         self._notificacion_label: ctk.CTkLabel | None = None
         self._notificacion_after_id: str | None = None
@@ -49,6 +64,10 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         self._pendientes_detail_container: ctk.CTkFrame | None = None
         self._ultimo_error_bd: str | None = None
         self._pedidos_listos_notificados: set[int] = set()
+        self._evento_pedido_listo = self._on_pedido_listo_event
+        self._evento_mesa_seleccionada = self._on_mesa_seleccionada_event
+        event_bus.subscribe("pedido.listo", self._evento_pedido_listo)
+        event_bus.subscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
         self._db_config = {
             "host": os.getenv("DB_HOST", "127.0.0.1"),
             "port": int(os.getenv("DB_PORT", "3306")),
@@ -73,7 +92,6 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         }
 
         self._build_layout()
-        self.after(3000, self._sondear_pedidos_listos)
 
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -173,8 +191,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         mesas_scroll.grid(row=1, column=0, sticky="ew", pady=(2, 0))
         mesas_canvas.configure(xscrollcommand=mesas_scroll.set)
 
-        mesas_content = ctk.CTkFrame(mesas_canvas, fg_color="transparent")
-        mesas_canvas_window = mesas_canvas.create_window((0, 0), window=mesas_content, anchor="nw")
+        self._mesas_view = MesasView(mesas_canvas, columnas=10)
+        mesas_canvas_window = mesas_canvas.create_window((0, 0), window=self._mesas_view.frame, anchor="nw")
 
         def _sync_mesas_scrollregion(_event: tk.Event | None = None) -> None:
             mesas_canvas.configure(scrollregion=mesas_canvas.bbox("all"))
@@ -183,26 +201,10 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             mesas_canvas.itemconfigure(mesas_canvas_window, height=event.height)
             mesas_canvas.configure(scrollregion=mesas_canvas.bbox("all"))
 
-        mesas_content.bind("<Configure>", _sync_mesas_scrollregion)
+        self._mesas_view.frame.bind("<Configure>", _sync_mesas_scrollregion)
         mesas_canvas.bind("<Configure>", _sync_mesas_canvas)
-
-        mesas = [
-            ("M1", "", "#2B2525"),
-            ("M2", "", "#2B2525"),
-            ("M3", "", "#2B2525"),
-            ("M4", "", "#2B2525"),
-            ("M5", "", "#2B2525"),
-            ("M6", "", "#2B2525"),
-            ("M7", "", "#2B2525"),
-            ("M8", "", "#2B2525"),
-            ("M9", "", "#2B2525"),
-            ("M10", "", "#2B2525"),
-        ]
-        for idx, (mesa, estado, bg_card) in enumerate(mesas):
-            self._mesa_card(mesas_content, mesa, estado, bg_card).grid(row=0, column=idx, sticky="nw", padx=5, pady=2)
-
-        for idx in range(len(mesas)):
-            mesas_content.grid_columnconfigure(idx, weight=0)
+        self._inicializar_plano_mesas()
+        mesas_canvas.xview_moveto(0.0)
 
         categorias = ctk.CTkFrame(center, fg_color="transparent")
         categorias.grid(row=2, column=0, sticky="ew", padx=12, pady=(4, 8))
@@ -274,6 +276,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
     def _select_mesa(self, mesa: str) -> None:
         self.mesa_actual = self._normalize_mesa_text(mesa)
+        if self._pedido_actual_controller is not None:
+            self._pedido_actual_controller.establecer_mesa(self.mesa_actual)
         if self._mesa_badge_label is not None:
             self._mesa_badge_label.configure(text=self.mesa_actual)
 
@@ -449,178 +453,98 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         return card
 
     def _build_order_panel(self) -> ctk.CTkFrame:
-        side = ctk.CTkFrame(self, fg_color="#2A1718", width=320, corner_radius=0)
-        side.grid(row=0, column=1, sticky="nsew")
-        side.grid_propagate(False)
-
-        header = ctk.CTkFrame(side, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 10))
-        header.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(header, text="Pedido Actual", text_color="#F4EBD0", font=("Segoe UI", 29, "bold")).grid(row=0, column=0, sticky="w")
-        self._mesa_badge_label = ctk.CTkLabel(
-            header,
-            text=self._normalize_mesa_text(self.mesa_actual),
-            text_color="#3A1E18",
-            fg_color="#E8A995",
-            corner_radius=10,
-            font=("Segoe UI", 9, "bold"),
-            padx=9,
-            pady=3,
+        self._pedido_actual_model = ModeloPedidoActual()
+        self._pedido_actual_view = VistaPedidoActual(
+            self,
+            ticket_numero=self._ticket_numero,
+            mesa_texto=self._normalize_mesa_text(self.mesa_actual),
         )
-        self._mesa_badge_label.grid(row=0, column=1, sticky="e", padx=(12, 0))
-        self._ticket_label = ctk.CTkLabel(header, text="", text_color="#D6C9A8", font=("Segoe UI", 11, "bold"))
-        self._ticket_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
-        self._actualizar_label_ticket()
-
-        item_wrap = ctk.CTkFrame(side, fg_color="transparent")
-        item_wrap.grid(row=1, column=0, sticky="nsew", padx=14)
-        side.grid_rowconfigure(1, weight=1)
-        self._pedido_items_container = item_wrap
-
-        self._pedido_vacio_label = ctk.CTkLabel(
-            item_wrap,
-            text="Sin productos en el pedido",
-            text_color="#D6C9A8",
-            font=("Segoe UI", 12, "bold"),
+        self._pedido_actual_controller = ControladorPedidoActual(
+            self._pedido_actual_model,
+            self._pedido_actual_view,
+            on_send_to_kitchen=self._enviar_pedido_a_cocina,
+            on_request_precuenta=self._on_precuenta_solicitada,
+            on_close_table_paid=self._on_cerrar_mesa_y_pagar,
+            on_exit=self._logout_to_login,
         )
-        self._pedido_vacio_label.pack(anchor="w", pady=(4, 0))
-
-        actions = ctk.CTkFrame(side, fg_color="transparent")
-        actions.grid(row=2, column=0, sticky="ew", padx=14, pady=(0, 14))
-        actions.grid_columnconfigure((0, 1), weight=1)
-
-        ctk.CTkButton(
-            actions,
-            text="Precuenta",
-            image=self._make_icon("receipt", "#F4EBD0", size=18),
-            compound="left",
-            fg_color="#3A2524",
-            hover_color="#503231",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 12, "bold"),
-            command=lambda: None,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
-
-        ctk.CTkButton(
-            actions,
-            text="A Cocina",
-            image=self._make_icon("send", "#2A1718", size=18),
-            compound="left",
-            fg_color="#F0A58E",
-            hover_color="#F8B7A5",
-            text_color="#2A1718",
-            font=("Segoe UI", 12, "bold"),
-            command=self._enviar_pedido_a_cocina,
-        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
-
-        ctk.CTkButton(
-            actions,
-            text="Cerrar Mesa & Pagar",
-            image=self._make_icon("cash", "#0F2010", size=18),
-            compound="left",
-            fg_color="#4FA64F",
-            hover_color="#66BB66",
-            text_color="#0F2010",
-            font=("Segoe UI", 12, "bold"),
-            command=lambda: None,
-        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-
-        footer = ctk.CTkFrame(side, fg_color="transparent")
-        footer.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
-        footer.grid_columnconfigure(0, weight=1)
-        footer.grid_columnconfigure(1, weight=1)
-        self._nav_buttons["logout"] = ctk.CTkButton(
-            footer,
-            text="  Salir",
-            image=self._make_icon("logout", "#F4EBD0"),
-            compound="left",
-            anchor="w",
-            corner_radius=8,
-            fg_color="#1A0D0C",
-            hover_color="#2A1A18",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 12, "bold"),
-            height=34,
-            command=lambda s="logout": self._show_section(s),
-        )
-        self._nav_buttons["logout"].grid(row=0, column=0, sticky="w")
-
-        ctk.CTkButton(
-            footer,
-            text="Ordenes pendientes",
-            fg_color="#3A2524",
-            hover_color="#503231",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 11, "bold"),
-            corner_radius=8,
-            height=34,
-            command=self._abrir_ordenes_pendientes,
-        ).grid(row=0, column=1, sticky="e")
-
-        side.grid_columnconfigure(0, weight=1)
-        return side
+        self._pedido_items_container = self._pedido_actual_view._items_container
+        self._pedido_vacio_label = self._pedido_actual_view._empty_label
+        self._ticket_label = self._pedido_actual_view._ticket_label
+        return self._pedido_actual_view.frame
 
     def _actualizar_label_ticket(self) -> None:
         if self._ticket_label is not None:
             self._ticket_label.configure(text=f"TICKET #{self._ticket_numero:05d}")
+        if self._pedido_actual_controller is not None:
+            self._pedido_actual_controller.establecer_ticket(self._ticket_numero)
 
     def agregar_producto_a_ticket(self, producto: dict[str, float | str]) -> None:
-        if self._pedido_items_container is None:
+        if self._pedido_actual_controller is None:
             return
+        era_primer_item = self._pedido_actual_model is not None and not self._pedido_actual_model.tiene_items()
+        nombre = str(producto.get("nombre", "Producto")).strip()
+        precio = float(producto.get("precio", 0.0) or 0.0)
+        categoria_db = str(producto.get("categoria_db", "Comida"))
+        id_item = str(producto.get("id_producto") or f"{categoria_db}:{nombre.lower()}")
+        self._pedido_actual_controller.agregar_item(
+            id_item=id_item,
+            nombre=nombre,
+            precio=precio,
+            cantidad=1,
+            categoria_db=categoria_db,
+        )
+        if era_primer_item and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
+            self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
+        self._actualizar_label_ticket()
 
-        if self._pedido_vacio_label is not None and self._pedido_vacio_label.winfo_exists():
-            self._pedido_vacio_label.destroy()
-            self._pedido_vacio_label = None
+    def _on_precuenta_solicitada(self) -> None:
+        if self._mesa_seleccionada_id is None or self._mesas_controller is None:
+            return
+        self._mesas_controller.solicitar_precuenta(self._mesa_seleccionada_id)
 
-        row = ctk.CTkFrame(self._pedido_items_container, fg_color="#231819", corner_radius=7)
-        row.pack(fill="x", pady=(0, 6))
+    def _on_cerrar_mesa_y_pagar(self) -> None:
+        if self._mesa_seleccionada_id is None or self._mesas_controller is None:
+            return
+        self._mesas_controller.liberar_mesa(self._mesa_seleccionada_id)
 
-        ctk.CTkLabel(
-            row,
-            text=str(producto["nombre"]),
-            text_color="#F4EBD0",
-            font=("Segoe UI", 12, "bold"),
-            anchor="w",
-        ).pack(side="left", padx=8, pady=7, fill="x", expand=True)
-
-        ctk.CTkLabel(
-            row,
-            text=f"${float(producto['precio']):.2f}",
-            text_color="#E8A27E",
-            font=("Segoe UI", 12, "bold"),
-        ).pack(side="right", padx=8)
-
-        self._pedido_actual.append({"nombre": str(producto["nombre"]), "precio": float(producto["precio"])})
-        if "categoria_db" in producto:
-            self._pedido_actual[-1]["categoria_db"] = str(producto["categoria_db"])
-
-    def _enviar_pedido_a_cocina(self) -> None:
-        if not self._pedido_actual:
+    def _enviar_pedido_a_cocina(self, items: list[dict[str, object]] | None = None) -> bool:
+        items_actuales = items or (self._pedido_actual_model.obtener_items() if self._pedido_actual_model is not None else [])
+        if not items_actuales:
             self._mostrar_notificacion("No hay productos para enviar", "#6F2C2C")
-            return
+            return False
 
         ticket = self._ticket_numero
         orden = {
             "ticket": ticket,
             "mesa": self._normalize_mesa_text(self.mesa_actual),
             "estado": "Enviado a cocina",
-            "items": [dict(item) for item in self._pedido_actual],
+            "items": [dict(item) for item in items_actuales],
         }
         self._ordenes_pendientes.append(orden)
-        guardado = self._guardar_orden_en_bd(orden)
-        if not guardado:
+        id_pedido = self._guardar_orden_en_bd(orden)
+        if id_pedido is None:
             detalle = f": {self._ultimo_error_bd}" if self._ultimo_error_bd else ""
             self._mostrar_notificacion(f"No se pudo enviar a cocina (BD){detalle}", "#6F2C2C")
             self._ordenes_pendientes.pop()
-            return
+            return False
 
+        event_bus.emit(
+            "pedido.creado",
+            {
+                "id_pedido": id_pedido,
+                "ticket": ticket,
+                "mesa": orden["mesa"],
+            },
+        )
         self._mostrar_notificacion(f"Ticket #{ticket:05d} enviado a cocina", "#2F5C36")
 
         self.after(5000, lambda t=ticket: self._marcar_orden_en_espera(t))
-        self._limpiar_panel_pedido_actual()
         self._ticket_numero += 1
         self._actualizar_label_ticket()
         self._refrescar_ventana_pendientes()
+        if self._pedido_actual_controller is not None:
+            self._pedido_actual_controller.limpiar()
+        return True
 
     def _connect_db(self):
         try:
@@ -629,38 +553,11 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             self._ultimo_error_bd = str(exc)
             return None
 
-    def _sondear_pedidos_listos(self) -> None:
-        connection = self._connect_db()
-        try:
-            if connection is None:
-                return
-            with connection.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT DISTINCT p.id_pedido
-                    FROM pedidos p
-                    INNER JOIN detalle_pedido dp ON dp.id_pedido = p.id_pedido
-                    WHERE dp.estado_item = 'Listo'
-                    """
-                )
-                rows = cursor.fetchall()
-
-            for row in rows:
-                pedido_id = int(row.get("id_pedido") or 0)
-                if pedido_id <= 0 or pedido_id in self._pedidos_listos_notificados:
-                    continue
-                self._pedidos_listos_notificados.add(pedido_id)
-                self._mostrar_notificacion(f"Pedido listo: #{pedido_id:05d}", "#2F5C36")
-        finally:
-            if connection is not None:
-                connection.close()
-            self.after(3000, self._sondear_pedidos_listos)
-
-    def _guardar_orden_en_bd(self, orden: dict[str, object]) -> bool:
+    def _guardar_orden_en_bd(self, orden: dict[str, object]) -> int | None:
         self._ultimo_error_bd = None
         connection = self._connect_db()
         if connection is None:
-            return False
+            return None
 
         try:
             with connection.cursor(dictionary=True) as cursor:
@@ -669,7 +566,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 if id_usuario is None:
                     self._ultimo_error_bd = "Sin usuario activo para registrar pedido"
                     connection.rollback()
-                    return False
+                    return None
 
                 id_mesa = self._resolver_id_mesa(cursor, str(orden.get("mesa", "")))
                 tipo_pedido = "Mesa" if id_mesa is not None else "Para llevar"
@@ -707,13 +604,102 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                     )
 
                 connection.commit()
-                return True
+                return int(id_pedido)
         except Error as exc:
             self._ultimo_error_bd = str(exc)
             connection.rollback()
-            return False
+            return None
         finally:
             connection.close()
+
+    def _on_pedido_listo_event(self, evento: dict[str, object]) -> None:
+        pedido_id = int(evento.get("id_pedido") or 0)
+        if pedido_id <= 0 or pedido_id in self._pedidos_listos_notificados:
+            return
+        self._pedidos_listos_notificados.add(pedido_id)
+        self._mostrar_notificacion(f"Pedido listo: #{pedido_id:05d}", "#2F5C36")
+
+    def _inicializar_plano_mesas(self) -> None:
+        if self._mesas_view is None:
+            return
+
+        self._asegurar_mesas_base_1_a_10()
+        self._mesas_model = MesasModel()
+        self._mesas_controller = MesasController(self._mesas_model, self._mesas_view)
+        self._mesas_view.configurar_accion_click(self._on_click_mesa_plano)
+
+        mesas_db = self._mesas_model.obtener_mesas()
+        mesas_por_numero: dict[int, dict[str, object]] = {}
+        for mesa in mesas_db:
+            try:
+                numero = int(mesa.get("numero_mesa") or 0)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= numero <= 10:
+                mesas_por_numero[numero] = mesa
+
+        mesas_1_a_10 = [mesas_por_numero[num] for num in range(1, 11) if num in mesas_por_numero]
+        if mesas_1_a_10:
+            self._mesas_view.dibujar_mesas(mesas_1_a_10)
+
+        self._mesas_por_id.clear()
+        for mesa in mesas_1_a_10:
+            id_mesa = int(mesa.get("id_mesa") or 0)
+            if id_mesa > 0:
+                self._mesas_por_id[id_mesa] = mesa
+
+        mesa_inicial = mesas_por_numero.get(1)
+        if mesa_inicial is not None:
+            self._on_mesa_seleccionada_event(
+                {
+                    "id_mesa": mesa_inicial.get("id_mesa"),
+                    "numero_mesa": mesa_inicial.get("numero_mesa"),
+                }
+            )
+
+    def _asegurar_mesas_base_1_a_10(self) -> None:
+        """Garantiza existencia de mesas 1..10 para mantener UX historica del mesero."""
+        connection = self._connect_db()
+        if connection is None:
+            return
+
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute("SELECT numero_mesa FROM mesas WHERE numero_mesa BETWEEN 1 AND 10")
+                existentes = {int(row["numero_mesa"]) for row in cursor.fetchall()}
+                faltantes = [numero for numero in range(1, 11) if numero not in existentes]
+                for numero in faltantes:
+                    cursor.execute(
+                        "INSERT INTO mesas (numero_mesa, estado, activo) VALUES (%s, 'Libre', 1)",
+                        (numero,),
+                    )
+            connection.commit()
+        except Error:
+            connection.rollback()
+        finally:
+            connection.close()
+
+    def _on_click_mesa_plano(self, id_mesa: int) -> None:
+        self._mesa_seleccionada_id = int(id_mesa)
+        if self._mesas_controller is not None:
+            self._mesas_controller.seleccionar_mesa(id_mesa)
+
+    def _on_mesa_seleccionada_event(self, evento: dict[str, object]) -> None:
+        id_mesa = int(evento.get("id_mesa") or 0)
+        if id_mesa <= 0:
+            return
+        self._mesa_seleccionada_id = id_mesa
+        numero = evento.get("numero_mesa")
+        if numero is None:
+            mesa_cache = self._mesas_por_id.get(id_mesa, {})
+            numero = mesa_cache.get("numero_mesa", id_mesa)
+
+        self.mesa_actual = f"Mesa {numero}"
+        mesa_ui = self._normalize_mesa_text(self.mesa_actual)
+        if self._pedido_actual_controller is not None:
+            self._pedido_actual_controller.establecer_mesa(mesa_ui)
+        if self._mesa_badge_label is not None:
+            self._mesa_badge_label.configure(text=mesa_ui)
 
     def _resolver_id_usuario(self, cursor) -> int | None:
         cursor.execute(
@@ -765,12 +751,10 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         cursor.execute("SELECT id_mesa FROM mesas WHERE numero_mesa = %s LIMIT 1", (numero,))
         row = cursor.fetchone()
         if row:
-            id_mesa = int(row["id_mesa"])
-            cursor.execute("UPDATE mesas SET estado = 'Ocupada' WHERE id_mesa = %s", (id_mesa,))
-            return id_mesa
+            return int(row["id_mesa"])
 
         cursor.execute(
-            "INSERT INTO mesas (numero_mesa, estado, activo) VALUES (%s, 'Ocupada', 1)",
+            "INSERT INTO mesas (numero_mesa, estado, activo) VALUES (%s, 'Libre', 1)",
             (numero,),
         )
         return int(cursor.lastrowid)
@@ -806,20 +790,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         return int(cursor.lastrowid)
 
     def _limpiar_panel_pedido_actual(self) -> None:
-        self._pedido_actual.clear()
-        if self._pedido_items_container is None:
-            return
-
-        for widget in self._pedido_items_container.winfo_children():
-            widget.destroy()
-
-        self._pedido_vacio_label = ctk.CTkLabel(
-            self._pedido_items_container,
-            text="Sin productos en el pedido",
-            text_color="#D6C9A8",
-            font=("Segoe UI", 12, "bold"),
-        )
-        self._pedido_vacio_label.pack(anchor="w", pady=(4, 0))
+        if self._pedido_actual_controller is not None:
+            self._pedido_actual_controller.limpiar()
 
     def _marcar_orden_en_espera(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
@@ -1084,9 +1056,18 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             )
 
     def _logout_to_login(self) -> None:
+        self._cleanup_event_listeners()
         self.destroy()
         if self.parent is not None and self.parent.winfo_exists():
             self.parent.deiconify()
+
+    def _cleanup_event_listeners(self) -> None:
+        event_bus.unsubscribe("pedido.listo", self._evento_pedido_listo)
+        event_bus.unsubscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
+
+    def destroy(self) -> None:
+        self._cleanup_event_listeners()
+        super().destroy()
 
     def _preparation_notes_section(self, parent: tk.Misc) -> ctk.CTkFrame:
         section = ctk.CTkFrame(parent, fg_color="#241516", border_color="#4A3131", border_width=1, corner_radius=8)
