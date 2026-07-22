@@ -96,7 +96,7 @@ class LoginWindow(ctk.CTk):
         )
         self.username_entry.grid(row=3, column=0, sticky="ew", pady=(0, 12))
 
-        ctk.CTkLabel(card, text="Contrasena", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
+        ctk.CTkLabel(card, text="Contraseña", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
             row=4, column=0, sticky="w", pady=(0, 6)
         )
         self.password_var = tk.StringVar()

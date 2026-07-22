@@ -10,9 +10,24 @@ class MesasView:
     """Vista MVC para pintar el plano de mesas en formato grid."""
 
     COLORES_ESTADO = {
-        "libre": {"fg": "#57B85C", "hover": "#6AC96F", "text": "#102211"},
-        "ocupada": {"fg": "#D14A3E", "hover": "#E05C52", "text": "#FFF3EF"},
-        "atencion": {"fg": "#E7A533", "hover": "#F2B64E", "text": "#2B1A00"},
+        "libre": {
+            "fg": "#355E49",
+            "hover": "#41785C",
+            "border": "#78F0A6",
+            "text": "#F1F7F1",
+        },
+        "ocupada": {
+            "fg": "#7A2C25",
+            "hover": "#95382F",
+            "border": "#FF8E7A",
+            "text": "#FFF4F1",
+        },
+        "atencion": {
+            "fg": "#7C5A17",
+            "hover": "#98701D",
+            "border": "#FFC94A",
+            "text": "#FFF6E4",
+        },
     }
 
     def __init__(self, parent: tk.Misc, columnas: int = 5) -> None:
@@ -51,6 +66,7 @@ class MesasView:
                 corner_radius=10,
                 font=("Segoe UI", 18, "bold"),
                 height=74,
+                border_width=1,
                 command=lambda mesa_id=id_mesa: self._on_click_mesa(mesa_id),
             )
             boton.grid(row=row, column=column, sticky="ew", padx=8, pady=8)
@@ -69,6 +85,7 @@ class MesasView:
         boton.configure(
             fg_color=colores["fg"],
             hover_color=colores["hover"],
+            border_color=colores["border"],
             text_color=colores["text"],
         )
 
@@ -174,27 +191,33 @@ def _run_demo() -> None:
     ctk.CTkButton(
         acciones,
         text="Todas Libre",
-        fg_color="#57B85C",
-        hover_color="#6AC96F",
-        text_color="#102211",
+        fg_color="#355E49",
+        hover_color="#41785C",
+        border_color="#78F0A6",
+        border_width=1,
+        text_color="#F1F7F1",
         command=lambda: _aplicar_estado_todas("Libre"),
     ).grid(row=0, column=0, sticky="ew", padx=4)
 
     ctk.CTkButton(
         acciones,
         text="Todas Ocupada",
-        fg_color="#D14A3E",
-        hover_color="#E05C52",
-        text_color="#FFF3EF",
+        fg_color="#7A2C25",
+        hover_color="#95382F",
+        border_color="#FF8E7A",
+        border_width=1,
+        text_color="#FFF4F1",
         command=lambda: _aplicar_estado_todas("Ocupada"),
     ).grid(row=0, column=1, sticky="ew", padx=4)
 
     ctk.CTkButton(
         acciones,
         text="Todas Atencion",
-        fg_color="#E7A533",
-        hover_color="#F2B64E",
-        text_color="#2B1A00",
+        fg_color="#7C5A17",
+        hover_color="#98701D",
+        border_color="#FFC94A",
+        border_width=1,
+        text_color="#FFF6E4",
         command=lambda: _aplicar_estado_todas("Atencion"),
     ).grid(row=0, column=2, sticky="ew", padx=4)
 

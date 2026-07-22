@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import tkinter as tk
-from tkinter import simpledialog
 
 import customtkinter as ctk
 
@@ -89,7 +88,7 @@ class VistaPedidoActual:
 
         ctk.CTkButton(
             actions,
-            text="Precuenta",
+            text="Pendientes",
             fg_color="#3A2524",
             hover_color="#503231",
             text_color="#F4EBD0",
@@ -277,7 +276,119 @@ class VistaPedidoActual:
             self._mesa_label.configure(text=self.mesa_texto)
 
     def pedir_nota(self, titulo: str = "Agregar nota") -> str | None:
-        return simpledialog.askstring(titulo, "Escribe una nota para el item:", parent=self.parent)
+        owner = self.frame.winfo_toplevel()
+        dialog = ctk.CTkToplevel(owner)
+        dialog.title(titulo)
+        dialog.geometry("460x320")
+        dialog.minsize(420, 300)
+        dialog.resizable(True, True)
+        dialog.configure(fg_color="#180C0D")
+        dialog.transient(owner)
+        dialog.grab_set()
+
+        result: dict[str, str | None] = {"value": None}
+
+        dialog.grid_columnconfigure(0, weight=1)
+        dialog.grid_rowconfigure(1, weight=1)
+
+        header = ctk.CTkFrame(dialog, fg_color="#231112", corner_radius=0)
+        header.grid(row=0, column=0, sticky="ew")
+        header.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            header,
+            text=titulo,
+            text_color="#F4EBD0",
+            font=("Segoe UI", 18, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=16, pady=(14, 0))
+        ctk.CTkLabel(
+            header,
+            text="Observacion para cocina o servicio",
+            text_color="#F09F86",
+            font=("Segoe UI", 10, "bold"),
+        ).grid(row=1, column=0, sticky="w", padx=16, pady=(2, 14))
+
+        body = ctk.CTkFrame(
+            dialog,
+            fg_color="#241516",
+            border_color="#F09F86",
+            border_width=1,
+            corner_radius=10,
+        )
+        body.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 14))
+        body.grid_columnconfigure(0, weight=1)
+        body.grid_rowconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            body,
+            text="Escribe una nota para el item:",
+            text_color="#E5D7BC",
+            font=("Segoe UI", 11, "bold"),
+        ).grid(row=0, column=0, sticky="w", padx=12, pady=(12, 6))
+
+        textbox = ctk.CTkTextbox(
+            body,
+            height=130,
+            fg_color="#161011",
+            border_color="#7A3931",
+            border_width=1,
+            text_color="#F4EBD0",
+            font=("Segoe UI", 11),
+            activate_scrollbars=False,
+        )
+        textbox.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 10))
+
+        actions = ctk.CTkFrame(body, fg_color="transparent")
+        actions.grid(row=2, column=0, sticky="ew", padx=12, pady=(0, 12))
+        actions.grid_columnconfigure(0, weight=1)
+        actions.grid_columnconfigure(1, weight=1)
+
+        def _close_with_value(value: str | None) -> None:
+            result["value"] = value
+            dialog.grab_release()
+            dialog.destroy()
+
+        def _confirmar() -> None:
+            _close_with_value(textbox.get("1.0", "end-1c").strip())
+
+        ctk.CTkButton(
+            actions,
+            text="Cancelar",
+            fg_color="#3A2524",
+            hover_color="#503231",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            command=lambda: _close_with_value(None),
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        ctk.CTkButton(
+            actions,
+            text="Guardar",
+            fg_color="#F0A58E",
+            hover_color="#F8B7A5",
+            text_color="#2A1718",
+            font=("Segoe UI", 12, "bold"),
+            command=_confirmar,
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+
+        dialog.protocol("WM_DELETE_WINDOW", lambda: _close_with_value(None))
+        dialog.bind("<Escape>", lambda _event: _close_with_value(None))
+        dialog.bind("<Control-Return>", lambda _event: _confirmar())
+
+        dialog.update_idletasks()
+        owner_x = owner.winfo_rootx()
+        owner_y = owner.winfo_rooty()
+        owner_w = owner.winfo_width()
+        owner_h = owner.winfo_height()
+        dialog_w = dialog.winfo_width()
+        dialog_h = dialog.winfo_height()
+        pos_x = owner_x + max((owner_w - dialog_w) // 2, 0)
+        pos_y = owner_y + max((owner_h - dialog_h) // 2, 0)
+        dialog.geometry(f"+{pos_x}+{pos_y}")
+
+        textbox.focus_set()
+        owner.wait_window(dialog)
+        return result["value"]
 
     def _total_row(self, parent: tk.Misc, row: int, etiqueta: str, total: bool = False) -> ctk.CTkLabel:
         ctk.CTkLabel(

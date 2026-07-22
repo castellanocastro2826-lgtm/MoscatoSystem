@@ -2,6 +2,11 @@ import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageTk
 
+try:
+    import winsound
+except ImportError:  # pragma: no cover - fallback fuera de Windows
+    winsound = None
+
 
 class CocinaDesignWindow(ctk.CTkToplevel):
     """Vista de referencia del monitor de cocina (solo diseno UI)."""
@@ -27,6 +32,8 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         self._active_section = "kitchen"
         self._main_frame: ctk.CTkFrame | None = None
         self._stat_labels: dict[str, ctk.CTkLabel] = {}
+        self._notificacion_label: ctk.CTkLabel | None = None
+        self._notificacion_after_id: str | None = None
         self.controlador = None
 
         self._build_layout()
@@ -297,11 +304,10 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         dishes = ctk.CTkFrame(body, fg_color="transparent")
         dishes.pack(side="top", anchor="w", fill="x", expand=False)
 
-        first = True
         for item in data["items"]:
-            parts = item.split("  ", 1)
-            qty = parts[0] if len(parts) > 1 else ""
-            name = parts[1] if len(parts) > 1 else parts[0]
+            qty = f"{int(item.get('cantidad') or 1)}x"
+            name = str(item.get("nombre") or "ITEM")
+            detalle = str(item.get("detalle") or "").strip()
 
             row = ctk.CTkFrame(dishes, fg_color="transparent")
             row.pack(side="top", anchor="w", fill="x", expand=False, pady=(0, 4))
@@ -317,16 +323,15 @@ class CocinaDesignWindow(ctk.CTkToplevel):
                 justify="left",
             ).pack(side="left", anchor="w", fill="x", expand=False)
 
-            if first and data.get("detalle"):
+            if detalle:
                 ctk.CTkLabel(
                     dishes,
-                    text=data["detalle"],
+                    text=detalle,
                     text_color="#F19B95",
                     font=("Segoe UI", 12, "italic"),
                     wraplength=200,
                     justify="left",
                 ).pack(side="top", anchor="w", expand=False, pady=(0, 6))
-                first = False
 
             ctk.CTkFrame(dishes, fg_color="#5C3A3A", height=1, corner_radius=0).pack(
                 side="top", anchor="w", fill="x", expand=False, pady=(2, 4)
@@ -363,6 +368,53 @@ class CocinaDesignWindow(ctk.CTkToplevel):
             ]
 
         self._layout_board_cards()
+
+    def notificar_nueva_comanda(self, ticket: int = 0, id_pedido: int = 0, texto: str | None = None) -> None:
+        if texto:
+            mensaje = texto
+        elif ticket > 0:
+            mensaje = f"Nueva comanda: TICKET #{ticket:05d}"
+        elif id_pedido > 0:
+            mensaje = f"Nueva comanda: PEDIDO #{id_pedido:05d}"
+        else:
+            mensaje = "Nueva comanda recibida"
+
+        self._mostrar_notificacion(mensaje, "#8A6317")
+        self._reproducir_campanita()
+
+    def _reproducir_campanita(self) -> None:
+        if winsound is not None:
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            self.after(140, lambda: winsound.MessageBeep(winsound.MB_ICONASTERISK))
+            return
+        self.bell()
+        self.after(160, self.bell)
+
+    def _mostrar_notificacion(self, texto: str, color: str = "#2F5C36") -> None:
+        if self._notificacion_label is None or not self._notificacion_label.winfo_exists():
+            self._notificacion_label = ctk.CTkLabel(
+                self,
+                text=texto,
+                fg_color=color,
+                text_color="#F4EBD0",
+                corner_radius=10,
+                font=("Segoe UI", 11, "bold"),
+                padx=12,
+                pady=6,
+            )
+        else:
+            self._notificacion_label.configure(text=texto, fg_color=color)
+
+        self._notificacion_label.place(relx=1.0, x=-18, y=18, anchor="ne")
+
+        if self._notificacion_after_id is not None:
+            self.after_cancel(self._notificacion_after_id)
+        self._notificacion_after_id = self.after(3000, self._ocultar_notificacion)
+
+    def _ocultar_notificacion(self) -> None:
+        if self._notificacion_label is not None and self._notificacion_label.winfo_exists():
+            self._notificacion_label.place_forget()
+        self._notificacion_after_id = None
 
     def _show_section(self, section: str) -> None:
         self._active_section = section

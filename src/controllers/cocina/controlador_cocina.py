@@ -12,9 +12,12 @@ from src.views.cocina.vista_cocina import CocinaDesignWindow
 class ControladorCocina:
     """Controlador MVC del monitor de cocina."""
 
+    REFRESH_MS = 3000
+
     def __init__(self, vista: CocinaDesignWindow, modelo: ModeloCocina | None = None) -> None:
         self.vista = vista
         self.modelo = modelo or ModeloCocina()
+        self._refresh_after_id: str | None = None
         self._evento_pedido_creado = self._on_pedido_creado
         event_bus.subscribe("pedido.creado", self._evento_pedido_creado)
 
@@ -30,6 +33,7 @@ class ControladorCocina:
             en_prep=en_prep,
             pendientes=pendientes,
         )
+        self._programar_refresco()
 
     def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
         """Avanza el estado del pedido completo y refresca la pantalla."""
@@ -47,12 +51,22 @@ class ControladorCocina:
         self.actualizar_pantalla()
 
     def desactivar(self) -> None:
+        if self._refresh_after_id is not None and getattr(self.vista, "winfo_exists", lambda: False)():
+            self.vista.after_cancel(self._refresh_after_id)
+            self._refresh_after_id = None
         event_bus.unsubscribe("pedido.creado", self._evento_pedido_creado)
 
     def _on_pedido_creado(self, evento: dict[str, Any]) -> None:
         if not getattr(self.vista, "winfo_exists", lambda: False)():
             return
-        self.vista.after(0, self.actualizar_pantalla)
+        ticket = int(evento.get("ticket") or 0)
+        id_pedido = int(evento.get("id_pedido") or 0)
+
+        def _notificar_y_refrescar() -> None:
+            self.vista.notificar_nueva_comanda(ticket=ticket, id_pedido=id_pedido)
+            self.actualizar_pantalla()
+
+        self.vista.after(0, _notificar_y_refrescar)
 
     def _agrupar_items_a_tarjetas(self, filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Agrupa filas por id_pedido (si existe) o por numero_mesa para renderizar una tarjeta por pedido."""
@@ -78,17 +92,19 @@ class ControladorCocina:
                     "siguiente_estado": "En preparación",
                     "accion_habilitada": True,
                     "items": [],
-                    "detalle": "",
                     "_estados": set(),
                 }
 
             cantidad = int(fila.get("cantidad") or 1)
             nombre = str(fila.get("nombre") or "ITEM").upper()
-            grupos[llave]["items"].append(f"{cantidad}x  {nombre}")
-
             detalle = str(fila.get("descripcion_preparacion") or "").strip()
-            if detalle and not grupos[llave]["detalle"]:
-                grupos[llave]["detalle"] = detalle
+            grupos[llave]["items"].append(
+                {
+                    "cantidad": cantidad,
+                    "nombre": nombre,
+                    "detalle": detalle,
+                }
+            )
 
             estado_item = self._normalizar_estado(str(fila.get("estado_item") or ""))
             grupos[llave]["_estados"].add(estado_item)
@@ -131,6 +147,19 @@ class ControladorCocina:
                 grupo["accion_habilitada"] = True
 
         return list(grupos.values())
+
+    def _programar_refresco(self) -> None:
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+        if self._refresh_after_id is not None:
+            self.vista.after_cancel(self._refresh_after_id)
+        self._refresh_after_id = self.vista.after(self.REFRESH_MS, self._refrescar_desde_timer)
+
+    def _refrescar_desde_timer(self) -> None:
+        self._refresh_after_id = None
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+        self.actualizar_pantalla()
 
     @staticmethod
     def _normalizar_mesa(numero_mesa: str) -> str:

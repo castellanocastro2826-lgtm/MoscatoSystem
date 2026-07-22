@@ -73,11 +73,6 @@ class ControladorPedidoActual:
     def precuenta(self) -> None:
         if self._on_request_precuenta is not None:
             self._on_request_precuenta()
-        totales = self.modelo.calcular_totales()
-        messagebox.showinfo(
-            "Precuenta",
-            f"Subtotal: ${totales['subtotal']:.2f}\nImpuesto: ${totales['impuesto']:.2f}\nTotal: ${totales['total']:.2f}",
-        )
 
     def enviar_a_cocina(self) -> None:
         if not self.modelo.tiene_items():
