@@ -763,8 +763,13 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         cursor.execute(
             """
             SELECT id_usuario
-            FROM usuarios
-            WHERE nombre = %s AND rol IN ('Mesonero', 'Mesero') AND activo = 1
+            FROM usuarios u
+            INNER JOIN empleados e
+                ON e.id_empleado = u.id_empleado
+            WHERE TRIM(CONCAT(e.nombres, ' ', e.apellidos)) = %s
+              AND u.rol IN ('Mesonero', 'Mesero')
+              AND u.activo = 1
+              AND e.activo = 1
             ORDER BY id_usuario ASC
             LIMIT 1
             """,
@@ -773,6 +778,20 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         row = cursor.fetchone()
         if row:
             return int(row["id_usuario"])
+
+        cursor.execute(
+            """
+            SELECT id_usuario
+            FROM usuarios
+            WHERE username = %s AND rol IN ('Mesonero', 'Mesero') AND activo = 1
+            ORDER BY id_usuario ASC
+            LIMIT 1
+            """,
+            (self.usuario,),
+        )
+        username_match = cursor.fetchone()
+        if username_match:
+            return int(username_match["id_usuario"])
 
         cursor.execute(
             """
