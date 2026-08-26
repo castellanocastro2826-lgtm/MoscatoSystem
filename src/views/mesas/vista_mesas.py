@@ -38,7 +38,8 @@ class MesasView:
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frame.grid_columnconfigure(tuple(range(self.columnas)), weight=1)
         self._botones_mesas: dict[int, ctk.CTkButton] = {}
-
+        self._mesa_seleccionada_id: int | None = None
+        self._estado_mesas: dict[int, str] = {}
     def configurar_accion_click(self, callback: Callable[[int], None] | None) -> None:
         """Permite que el controlador conecte el click de cada mesa."""
         self.on_mesa_click = callback
@@ -66,7 +67,7 @@ class MesasView:
                 corner_radius=10,
                 font=("Segoe UI", 18, "bold"),
                 height=74,
-                border_width=1,
+                border_width=3,  # Borde fijo a 3 para que no cambie el layout al seleccionar
                 command=lambda mesa_id=id_mesa: self._on_click_mesa(mesa_id),
             )
             boton.grid(row=row, column=column, sticky="ew", padx=8, pady=8)
@@ -80,14 +81,38 @@ class MesasView:
         if boton is None:
             return
 
+        self._estado_mesas[int(id_mesa)] = estado
         estado_norm = self._normalizar_estado(estado)
         colores = self.COLORES_ESTADO.get(estado_norm, self.COLORES_ESTADO["libre"])
+        
+        # Borde blanco si está seleccionada
+        if self._mesa_seleccionada_id == int(id_mesa):
+            border_color = "#FFFFFF"
+        else:
+            border_color = colores["border"]
+
         boton.configure(
             fg_color=colores["fg"],
             hover_color=colores["hover"],
-            border_color=colores["border"],
+            border_color=border_color,
             text_color=colores["text"],
         )
+
+    def marcar_mesa_seleccionada(self, id_mesa: int) -> None:
+        """Resalta la mesa seleccionada y restaura la anterior."""
+        id_mesa = int(id_mesa)
+        anterior = self._mesa_seleccionada_id
+        
+        self._mesa_seleccionada_id = id_mesa
+        
+        # Restaurar mesa anterior
+        if anterior is not None and anterior != id_mesa:
+            estado_ant = self._estado_mesas.get(anterior, "Libre")
+            self.actualizar_color_mesa(anterior, estado_ant)
+            
+        # Resaltar la nueva
+        estado_nueva = self._estado_mesas.get(id_mesa, "Libre")
+        self.actualizar_color_mesa(id_mesa, estado_nueva)
 
     def _on_click_mesa(self, id_mesa: int) -> None:
         if self.on_mesa_click is not None:

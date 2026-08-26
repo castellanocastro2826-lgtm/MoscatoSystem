@@ -407,11 +407,15 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             boton.configure(fg_color="#8C1A11" if nombre == self._categoria_actual else "#3A2B2A")
 
     def _cargar_productos_catalogo(self) -> None:
+        # Mapeo de categorías en BD -> Categorías en UI
         categorias = {
             "Moscato Chino - Compartir": "Combos",
             "Moscato Chino - Personal": "Comida China",
             "Moscato Broaster": "Combos",
             "Promociones": "Promos",
+            "Comida": "Comida China",
+            "Bebida": "Bebidas",
+            "Postre": "Comida China",
         }
         connection = self._connect_db()
         if connection is None:
@@ -437,11 +441,13 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                     "Bebidas": [],
                 }
                 for producto in cursor.fetchall():
-                    boton_categoria = categorias.get(str(producto["categoria_db"]))
-                    if boton_categoria is not None:
-                        producto["categoria_db"] = str(producto["categoria_db"])
-                        producto["precio"] = float(producto["precio"])
-                        productos_por_categoria[boton_categoria].append(producto)
+                    # Obtenemos la categoria mapeada, si no existe la mandamos por defecto a "Comida China"
+                    boton_categoria = categorias.get(str(producto["categoria_db"]), "Comida China")
+                    
+                    producto["categoria_db"] = str(producto["categoria_db"])
+                    producto["precio"] = float(producto["precio"])
+                    productos_por_categoria[boton_categoria].append(producto)
+                    
                 self._productos_por_categoria = productos_por_categoria
         except Error as exc:
             self._ultimo_error_bd = str(exc)
@@ -790,6 +796,9 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             self._pedido_actual_controller.establecer_mesa(mesa_ui)
         if self._mesa_badge_label is not None:
             self._mesa_badge_label.configure(text=mesa_ui)
+            
+        if self._mesas_view is not None:
+            self._mesas_view.marcar_mesa_seleccionada(id_mesa)
 
     def _resolver_id_usuario(self, cursor) -> int | None:
         cursor.execute(
