@@ -423,7 +423,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 cursor.execute(
                     """
                     SELECT pr.id_producto, pr.nombre, pr.precio,
-                              ca.nombre AS categoria_db, pr.descripcion
+                            ca.nombre AS categoria_db, pr.descripcion
                     FROM productos pr
                     INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
                     WHERE pr.activo = 1 AND pr.disponible = 1 AND ca.activo = 1
