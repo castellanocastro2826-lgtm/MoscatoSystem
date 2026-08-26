@@ -87,19 +87,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             "autocommit": False,
         }
 
-        # Estructura provisional de productos para pruebas de UI.
-        self._productos_por_categoria = {
-            "Comida China": [
-                {"nombre": "Pollo Kung", "precio": 18.50, "categoria_db": "Comida"},
-                {"nombre": "Arroz Yangzhou", "precio": 14.00, "categoria_db": "Comida"},
-            ],
-            "Promos": [],
-            "Combos": [],
-            "Bebidas": [
-                {"nombre": "Te de Jazmin", "precio": 5.00, "categoria_db": "Bebida"},
-                {"nombre": "Cerveza Tsingtao", "precio": 12.00, "categoria_db": "Bebida"},
-            ],
-        }
+        self._productos_por_categoria: dict[str, list[dict[str, object]]] = {}
+        self._cargar_productos_catalogo()
 
         self._build_layout()
         self._programar_sincronizacion_pedidos()
@@ -397,8 +386,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             card = self._product_card(
                 self._catalog_content,
                 producto["nombre"],
-                f"${producto['precio']:.2f}",
-                "Producto de prueba",
+                f"${producto['precio']:,.0f}",
+                str(producto.get("descripcion", "")),
             )
             self._enlazar_click_producto(card, producto)
             self._product_cards.append(card)
@@ -416,6 +405,49 @@ class MeseroDesignWindow(ctk.CTkToplevel):
     def _actualizar_estilo_categorias(self) -> None:
         for nombre, boton in self._categoria_botones.items():
             boton.configure(fg_color="#8C1A11" if nombre == self._categoria_actual else "#3A2B2A")
+
+    def _cargar_productos_catalogo(self) -> None:
+        categorias = {
+            "Moscato Chino - Compartir": "Combos",
+            "Moscato Chino - Personal": "Comida China",
+            "Moscato Broaster": "Combos",
+            "Promociones": "Promos",
+        }
+        connection = self._connect_db()
+        if connection is None:
+            self._productos_por_categoria = {}
+            return
+
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(
+                    """
+                    SELECT pr.id_producto, pr.nombre, pr.precio,
+                              ca.nombre AS categoria_db, pr.descripcion
+                    FROM productos pr
+                    INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
+                    WHERE pr.activo = 1 AND pr.disponible = 1 AND ca.activo = 1
+                    ORDER BY ca.id_categoria, pr.id_producto
+                    """
+                )
+                productos_por_categoria: dict[str, list[dict[str, object]]] = {
+                    "Comida China": [],
+                    "Promos": [],
+                    "Combos": [],
+                    "Bebidas": [],
+                }
+                for producto in cursor.fetchall():
+                    boton_categoria = categorias.get(str(producto["categoria_db"]))
+                    if boton_categoria is not None:
+                        producto["categoria_db"] = str(producto["categoria_db"])
+                        producto["precio"] = float(producto["precio"])
+                        productos_por_categoria[boton_categoria].append(producto)
+                self._productos_por_categoria = productos_por_categoria
+        except Error as exc:
+            self._ultimo_error_bd = str(exc)
+            self._productos_por_categoria = {}
+        finally:
+            connection.close()
 
     def _enlazar_click_producto(self, card: ctk.CTkFrame, producto: dict[str, float | str]) -> None:
         def _on_click(_event: tk.Event | None = None) -> None:
@@ -856,29 +888,16 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         if row:
             return int(row["id_producto"])
 
-        # Resuelve o crea la categoria en la tabla categorias.
-        nombre_categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
-        cursor.execute(
-            "SELECT id_categoria FROM categorias WHERE nombre = %s LIMIT 1",
-            (nombre_categoria,),
-        )
-        cat_row = cursor.fetchone()
-        if cat_row:
-            id_categoria = int(cat_row["id_categoria"])
-        else:
-            cursor.execute(
-                "INSERT INTO categorias (nombre) VALUES (%s)",
-                (nombre_categoria,),
-            )
-            id_categoria = int(cursor.lastrowid)
-
+        categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
         cursor.execute(
             """
-            INSERT INTO productos (nombre, precio, id_categoria, disponible, activo)
+            INSERT INTO productos (nombre, precio, categoria, disponible, activo)
             VALUES (%s, %s, %s, 1, 1)
             """,
-            (nombre, precio, id_categoria),
+            (nombre, precio, categoria),
         )
+        if cursor.rowcount == 0:
+            raise Error(f"No existe la categoria del producto: {categoria_db}")
         return int(cursor.lastrowid)
 
     def _limpiar_panel_pedido_actual(self) -> None:

@@ -72,8 +72,4 @@ flowchart LR
     Sistema --> UC10
 ```
 
-## 5. Versión textual lista para draw.io
-- Administrador: autentica, gestiona empleados, gestiona mesas y visualiza estadísticas.
-- Mesero: autentica, crea y modifica pedidos, envía órdenes a cocina, genera precuenta y cierra cuentas.
-- Cocinero: autentica, consulta la cocina y actualiza el estado de los pedidos.
-- Sistema: persiste pedidos, estados y datos de mesas/empleados.
+
