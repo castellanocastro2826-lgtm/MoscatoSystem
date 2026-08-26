@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 CREATE TABLE IF NOT EXISTS productos (
     id_producto INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) NOT NULL,
+    descripcion VARCHAR(255) NULL,
     precio DECIMAL(10, 2) NOT NULL,
     id_categoria INT NOT NULL,
     disponible TINYINT(1) DEFAULT 1,
