@@ -350,9 +350,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             return
 
         available_width = max(1, self._catalog_canvas.winfo_width() - 20)
-        card_min_width = 260
-        columns = max(1, available_width // card_min_width)
-        columns = min(columns, len(self._product_cards))
+        columns = 4
 
         for index, card in enumerate(self._product_cards):
             card.grid_forget()
@@ -382,12 +380,16 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             widget.destroy()
         self._product_cards.clear()
 
+        import re
         for producto in self._productos_por_categoria.get(categoria, []):
+            nombre_limpio = re.sub(r'(?i)\bfamiliares?\b', '', str(producto["nombre"]))
+            nombre_limpio = ' '.join(nombre_limpio.split())
             card = self._product_card(
                 self._catalog_content,
-                producto["nombre"],
+                nombre_limpio,
                 f"${producto['precio']:,.0f}",
                 str(producto.get("descripcion", "")),
+                producto.get("imagen")
             )
             self._enlazar_click_producto(card, producto)
             self._product_cards.append(card)
@@ -467,30 +469,79 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             self._catalog_canvas.itemconfigure(self._catalog_window_id, width=event.width)
         self._schedule_catalog_layout()
 
-    def _product_card(self, parent: tk.Misc, nombre: str, precio: str, descripcion: str) -> ctk.CTkFrame:
-        card = ctk.CTkFrame(parent, fg_color="#231819", border_color="#3B2A2A", border_width=1, corner_radius=8)
+    def _product_card(self, parent: tk.Misc, nombre: str, precio: str, descripcion: str, image_path: str = None) -> ctk.CTkFrame:
+        card = ctk.CTkFrame(parent, fg_color="#1E1E1E", corner_radius=15)
+        # Evita que el contenedor encoja o cambie su tamaño por el contenido
+        card.pack_propagate(False)
         card.grid_propagate(False)
 
-        image_box = ctk.CTkLabel(card, text="", image=self._make_icon("dish", "#DCCAA8", size=72), fg_color="transparent")
-        image_box.pack(fill="x", padx=8, pady=(8, 4))
+        # Frame interno invisible que aplica el padding de 15px
+        padding = 15
+        content_frame = ctk.CTkFrame(card, fg_color="transparent")
+        content_frame.pack(fill="both", expand=True, padx=padding, pady=padding)
 
-        title_wrap = ctk.CTkFrame(card, fg_color="transparent")
-        title_wrap.pack(fill="x", padx=8)
-        ctk.CTkLabel(title_wrap, text=nombre, text_color="#F4EBD0", font=("Segoe UI", 18, "bold"), anchor="w").pack(
-            side="left", fill="x", expand=True
+        # AREA DE IMAGEN (Top)
+        img_height = 130
+        if image_path:
+            try:
+                from PIL import Image
+                pil_img = Image.open(image_path)
+                ctk_image = ctk.CTkImage(
+                    light_image=pil_img, 
+                    dark_image=pil_img, 
+                    size=(200, img_height) # El ancho será responsivo
+                )
+                image_label = ctk.CTkLabel(content_frame, text="", image=ctk_image)
+            except Exception:
+                image_label = ctk.CTkLabel(
+                    content_frame, text="Imagen no encontrada", 
+                    fg_color="#333333", height=img_height, corner_radius=8
+                )
+        else:
+            image_label = ctk.CTkLabel(
+                content_frame, text="Sin Foto Disponible", 
+                fg_color="#333333", height=img_height, corner_radius=8
+            )
+        
+        image_label.pack(fill="x", pady=(0, 15))
+
+        # FILA DE TITULO Y PRECIO (Middle)
+        middle_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        middle_frame.pack(fill="x", pady=(0, 5))
+
+        middle_frame.grid_columnconfigure(0, weight=1)
+        middle_frame.grid_columnconfigure(1, weight=0)
+
+        title_label = ctk.CTkLabel(
+            middle_frame, 
+            text=nombre, 
+            text_color="#FFFFFF", 
+            font=("Segoe UI", 16, "bold"),
+            anchor="w"
         )
-        ctk.CTkLabel(title_wrap, text=precio, text_color="#E8A27E", font=("Segoe UI", 14, "bold")).pack(side="right")
+        title_label.grid(row=0, column=0, sticky="ew", padx=(0, 10))
 
+        price_label = ctk.CTkLabel(
+            middle_frame, 
+            text=precio, 
+            text_color="#FFB347", 
+            font=("Segoe UI", 16, "bold"),
+            anchor="e"
+        )
+        price_label.grid(row=0, column=1, sticky="e")
+
+        # DESCRIPCION (Bottom)
         descripcion_label = ctk.CTkLabel(
-            card,
+            content_frame,
             text=descripcion,
             justify="left",
-            wraplength=190,
-            text_color="#DCCAA8",
-            font=("Segoe UI", 11),
-            anchor="w",
+            wraplength=190, # Será reconfigurado dinámicamente en _layout_catalog_cards
+            text_color="#AAAAAA",
+            font=("Segoe UI", 12),
+            anchor="nw",
         )
-        descripcion_label.pack(fill="x", padx=8, pady=(6, 10))
+        descripcion_label.pack(fill="both", expand=True)
+        
         card.descripcion_label = descripcion_label
 
         return card
