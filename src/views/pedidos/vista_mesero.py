@@ -856,13 +856,28 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         if row:
             return int(row["id_producto"])
 
-        categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
+        # Resuelve o crea la categoria en la tabla categorias.
+        nombre_categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
+        cursor.execute(
+            "SELECT id_categoria FROM categorias WHERE nombre = %s LIMIT 1",
+            (nombre_categoria,),
+        )
+        cat_row = cursor.fetchone()
+        if cat_row:
+            id_categoria = int(cat_row["id_categoria"])
+        else:
+            cursor.execute(
+                "INSERT INTO categorias (nombre) VALUES (%s)",
+                (nombre_categoria,),
+            )
+            id_categoria = int(cursor.lastrowid)
+
         cursor.execute(
             """
-            INSERT INTO productos (nombre, precio, categoria, disponible, activo)
+            INSERT INTO productos (nombre, precio, id_categoria, disponible, activo)
             VALUES (%s, %s, %s, 1, 1)
             """,
-            (nombre, precio, categoria),
+            (nombre, precio, id_categoria),
         )
         return int(cursor.lastrowid)
 
