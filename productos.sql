@@ -1,5 +1,5 @@
 INSERT INTO categorias (nombre, descripcion) VALUES
-('Moscato Chino - Compartir', 'Combos familiares y para compartir de comida china'),
+('Moscato Chino - Compartir', 'Combos y para compartir de comida china'),
 ('Moscato Chino - Personal', 'Platos individuales de comida china y acompañantes'),
 ('Moscato Broaster', 'Combos de pollo a la broaster tradicional'),
 ('Promociones', 'Ofertas especiales y combos mixtos');
@@ -7,11 +7,11 @@ INSERT INTO productos (nombre, descripcion, precio, id_categoria) VALUES
 -- ==========================================
 -- Categoría 1: Moscato Chino - Compartir 
 -- ==========================================
-('Combo Familiar 1', 'Arroz 500 g, 3 piezas de pollo broaster y 3 lumpias', 36000.00, 1),
-('Combo Familiar 2', 'Arroz 1 kg y 4 lumpias', 39000.00, 1),
-('Combo Familiar 3', '8 piezas de pollo broaster, arroz 1 kg y 4 lumpias', 70000.00, 1),
-('Combo Familiar 4', 'Pollo agridulce, chop suey, arroz 1 kg y 4 lumpias', 60000.00, 1),
-('Combo Familiar 5', 'Arroz 1.5 kg, 8 piezas de pollo, chop suey, 5 lumpias y refresco', 130000.00, 1),
+('Combo 1', 'Arroz 500 g, 3 piezas de pollo broaster y 3 lumpias', 36000.00, 1),
+('Combo 2', 'Arroz 1 kg y 4 lumpias', 39000.00, 1),
+('Combo 3', '8 piezas de pollo broaster, arroz 1 kg y 4 lumpias', 70000.00, 1),
+('Combo 4', 'Pollo agridulce, chop suey, arroz 1 kg y 4 lumpias', 60000.00, 1),
+('Combo 5', 'Arroz 1.5 kg, 8 piezas de pollo, chop suey, 5 lumpias y refresco', 130000.00, 1),
 
 -- ==========================================
 -- Categoría 2: Moscato Chino - Personal
@@ -29,7 +29,7 @@ INSERT INTO productos (nombre, descripcion, precio, id_categoria) VALUES
 ('Combo Soltero', '1 pieza de pollo crocante y arepitas', 10000.00, 3),
 ('Combo Dúo', '2 piezas de pollo crocante y arepitas', 14000.00, 3),
 ('Combo Mediano', '4 piezas de pollo crocante y arepitas', 28000.00, 3),
-('Combo Familiar Broaster', '8 piezas de pollo, arepitas y papas', 59000.00, 3),
+('Combo Broaster', '8 piezas de pollo, arepitas y papas', 59000.00, 3),
 
 -- ==========================================
 -- Categoría 4: Promociones
