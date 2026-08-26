@@ -425,7 +425,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 cursor.execute(
                     """
                     SELECT pr.id_producto, pr.nombre, pr.precio,
-                              ca.nombre AS categoria_db, pr.descripcion
+                            ca.nombre AS categoria_db, pr.descripcion
                     FROM productos pr
                     INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
                     WHERE pr.activo = 1 AND pr.disponible = 1 AND ca.activo = 1
@@ -939,15 +939,13 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         if row:
             return int(row["id_producto"])
 
+        categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
         cursor.execute(
             """
-            INSERT INTO productos (nombre, precio, id_categoria, disponible, activo)
-            SELECT %s, %s, id_categoria, 1, 1
-            FROM categorias
-            WHERE nombre = %s
-            LIMIT 1
+            INSERT INTO productos (nombre, precio, categoria, disponible, activo)
+            VALUES (%s, %s, %s, 1, 1)
             """,
-            (nombre, precio, categoria_db),
+            (nombre, precio, categoria),
         )
         if cursor.rowcount == 0:
             raise Error(f"No existe la categoria del producto: {categoria_db}")

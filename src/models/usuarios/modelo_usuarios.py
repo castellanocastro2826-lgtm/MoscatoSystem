@@ -21,6 +21,7 @@ class ModeloUsuarios:
             "user": os.getenv("DB_USER", "root"),
             "password": os.getenv("DB_PASSWORD", ""),
             "database": os.getenv("DB_NAME", "moscato_db"),
+            
             "autocommit": False,
         }
 
