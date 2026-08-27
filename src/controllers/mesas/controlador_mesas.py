@@ -45,7 +45,7 @@ class MesasController:
     # Ejemplo: el controlador de pedidos llama registrar_primer_item cuando
     # se agrega el primer producto de una mesa.
     def registrar_primer_item(self, id_mesa: int) -> bool:
-        return self._cambiar_estado_mesa(id_mesa, "Ocupada")
+        return self._cambiar_estado_mesa(id_mesa, "Atencion")
 
     def solicitar_precuenta(self, id_mesa: int) -> bool:
         return self._cambiar_estado_mesa(id_mesa, "Atencion")

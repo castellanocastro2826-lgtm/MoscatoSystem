@@ -210,7 +210,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         categorias.grid(row=2, column=0, sticky="ew", padx=12, pady=(4, 8))
         categorias.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
-        chips = ["Comida China", "Promos", "Combos", "Bebidas"]
+        chips = ["Comida China", "Combos", "Promos", "Bebidas"]
         for idx, chip in enumerate(chips):
             boton = self._chip(
                 categorias,
@@ -432,26 +432,37 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                             ca.nombre AS categoria_db, pr.descripcion
                     FROM productos pr
                     INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
-                    WHERE pr.activo = 1 AND pr.disponible = 1 AND ca.activo = 1
+                    WHERE ca.activo = 1
                     ORDER BY ca.id_categoria, pr.id_producto
                     """
                 )
                 productos_por_categoria: dict[str, list[dict[str, object]]] = {
                     "Comida China": [],
-                    "Promos": [],
                     "Combos": [],
+                    "Promos": [],
                     "Bebidas": [],
                 }
-                for producto in cursor.fetchall():
+                
+                filas = cursor.fetchall()
+                print("DEBUG - Productos obtenidos de BD:", len(filas))
+                
+                for producto in filas:
+                    print("DEBUG - Producto:", producto["nombre"], "Categoria DB:", producto["categoria_db"])
                     # Obtenemos la categoria mapeada, si no existe la mandamos por defecto a "Comida China"
                     boton_categoria = categorias.get(str(producto["categoria_db"]), "Comida China")
                     
                     producto["categoria_db"] = str(producto["categoria_db"])
                     producto["precio"] = float(producto["precio"])
+                    
+                    # Verificamos que la categoria del boton exista en el diccionario
+                    if boton_categoria not in productos_por_categoria:
+                        productos_por_categoria[boton_categoria] = []
+                        
                     productos_por_categoria[boton_categoria].append(producto)
                     
                 self._productos_por_categoria = productos_por_categoria
-        except Error as exc:
+        except Exception as exc:
+            print("DEBUG DB ERROR:", exc)
             self._ultimo_error_bd = str(exc)
             self._productos_por_categoria = {}
         finally:
@@ -567,6 +578,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             on_close_table_paid=self._on_cerrar_mesa_y_pagar,
             on_exit=self._logout_to_login,
         )
+        self._pedido_actual_view.tipo_pedido_var.trace_add("write", self._on_tipo_pedido_changed)
         self._pedido_items_container = self._pedido_actual_view._items_container
         self._pedido_vacio_label = self._pedido_actual_view._empty_label
         self._ticket_label = self._pedido_actual_view._ticket_label
@@ -593,8 +605,12 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             cantidad=1,
             categoria_db=categoria_db,
         )
+        tipo_pedido = self._pedido_actual_view.tipo_pedido_var.get() if self._pedido_actual_view else "Mesa"
         if era_primer_item and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
-            self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
+            if tipo_pedido == "Mesa":
+                self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
+            else:
+                self._mesas_controller.liberar_mesa(self._mesa_seleccionada_id)
         self._actualizar_label_ticket()
 
     def _on_precuenta_solicitada(self) -> None:
@@ -612,12 +628,18 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             return False
 
         ticket = self._ticket_numero
+        
+        tipo_pedido_ui = self._pedido_actual_view.tipo_pedido_var.get() if self._pedido_actual_view else "Mesa"
+        mesa_str = "Para llevar" if tipo_pedido_ui == "Para llevar" else self._normalize_mesa_text(self.mesa_actual)
+        pagado_bool = False
+        
         orden = {
             "ticket": ticket,
-            "mesa": self._normalize_mesa_text(self.mesa_actual),
+            "mesa": mesa_str,
             "estado": "Enviado a cocina",
             "items": [dict(item) for item in items_actuales],
             "id_pedido": 0,
+            "pagado": pagado_bool,
         }
         self._ordenes_pendientes.append(orden)
         id_pedido = self._guardar_orden_en_bd(orden)
@@ -638,6 +660,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             },
         )
         self._mostrar_notificacion(f"Ticket #{ticket:05d} enviado a cocina", "#2F5C36")
+        self._reproducir_campanita()
 
         self.after(5000, lambda t=ticket: self._marcar_orden_en_espera(t))
         self._ticket_numero += 1
@@ -674,10 +697,10 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
                 cursor.execute(
                     """
-                    INSERT INTO pedidos (id_mesa, id_usuario, tipo_pedido, estado_pedido)
-                    VALUES (%s, %s, %s, 'En cocina')
+                    INSERT INTO pedidos (id_mesa, id_usuario, tipo_pedido, estado_pedido, pagado)
+                    VALUES (%s, %s, %s, 'En cocina', %s)
                     """,
-                    (id_mesa, id_usuario, tipo_pedido),
+                    (id_mesa, id_usuario, tipo_pedido, 1 if orden.get("pagado") else 0),
                 )
                 id_pedido = int(cursor.lastrowid)
                 self._asegurar_tabla_tickets(cursor)
@@ -742,6 +765,17 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         orden = self._buscar_orden_por_id_pedido(pedido_id)
         if orden is not None:
             orden["estado"] = estado_item
+            
+            if estado_item in {"En preparación", "Listo"}:
+                mesa_texto = str(orden.get("mesa", ""))
+                if "MESA" in mesa_texto.upper() and self._mesas_controller is not None:
+                    numero = self._extraer_numero_mesa(mesa_texto)
+                    if numero is not None:
+                        for m_id, m_data in self._mesas_por_id.items():
+                            if m_data.get("numero_mesa") == numero:
+                                self._mesas_controller._cambiar_estado_mesa(m_id, "Ocupada")
+                                break
+                                
             if estado_item == "Listo":
                 self._mover_orden_a_auditoria(orden)
                 self._refrescar_ventana_pendientes()
@@ -750,6 +784,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
         if estado_item == "En preparación":
             self._mostrar_notificacion(f"Cocina confirmo pedido #{pedido_id:05d}", "#8A6317")
+            self._reproducir_campanita()
         elif estado_item == "Listo":
             texto = self._texto_notificacion_pedido_listo(pedido_id)
             if texto is not None:
@@ -757,8 +792,9 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 self._reproducir_campanita()
 
     def _mover_orden_a_auditoria(self, orden: dict[str, object]) -> None:
-        if orden in self._ordenes_pendientes:
-            self._ordenes_pendientes.remove(orden)
+        # Se conserva en la lista de pendientes como historial (a petición del usuario)
+        # if orden in self._ordenes_pendientes:
+        #     self._ordenes_pendientes.remove(orden)
 
         # Se conserva copia para la vista de auditoría sin mostrarla en pendientes.
         snapshot = dict(orden)
@@ -843,13 +879,35 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
         self.mesa_actual = f"Mesa {numero}"
         mesa_ui = self._normalize_mesa_text(self.mesa_actual)
+        
+        if self._pedido_actual_view is not None:
+            self._pedido_actual_view.tipo_pedido_var.set("Mesa")
+            pass
+            
         if self._pedido_actual_controller is not None:
             self._pedido_actual_controller.establecer_mesa(mesa_ui)
+            
         if self._mesa_badge_label is not None:
             self._mesa_badge_label.configure(text=mesa_ui)
             
         if self._mesas_view is not None:
             self._mesas_view.marcar_mesa_seleccionada(id_mesa)
+
+    def _on_tipo_pedido_changed(self, *args) -> None:
+        if not self._pedido_actual_view or not self._mesas_controller or not self._mesa_seleccionada_id:
+            return
+        tipo = self._pedido_actual_view.tipo_pedido_var.get()
+        if tipo == "Para llevar":
+            self._pedido_actual_view._mesa_label.configure(text="Para llevar")
+            if self._mesa_badge_label is not None:
+                self._mesa_badge_label.configure(text="Para llevar")
+            self._mesas_controller.liberar_mesa(self._mesa_seleccionada_id)
+        else:
+            self._pedido_actual_view._mesa_label.configure(text=self._normalize_mesa_text(self.mesa_actual))
+            if self._mesa_badge_label is not None:
+                self._mesa_badge_label.configure(text=self._normalize_mesa_text(self.mesa_actual))
+            if self._pedido_actual_model and self._pedido_actual_model.obtener_items():
+                self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
 
     def _resolver_id_usuario(self, cursor) -> int | None:
         cursor.execute(
@@ -948,16 +1006,25 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         if row:
             return int(row["id_producto"])
 
-        categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
+        nombre_categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
+        cursor.execute(
+            "SELECT id_categoria FROM categorias WHERE nombre = %s LIMIT 1",
+            (nombre_categoria,),
+        )
+        cat_row = cursor.fetchone()
+        if cat_row:
+            id_categoria = int(cat_row["id_categoria"])
+        else:
+            cursor.execute("INSERT INTO categorias (nombre) VALUES (%s)", (nombre_categoria,))
+            id_categoria = int(cursor.lastrowid)
+
         cursor.execute(
             """
-            INSERT INTO productos (nombre, precio, categoria, disponible, activo)
-            VALUES (%s, %s, %s, 1, 1)
+            INSERT INTO productos (nombre, precio, id_categoria)
+            VALUES (%s, %s, %s)
             """,
-            (nombre, precio, categoria),
+            (nombre, precio, id_categoria),
         )
-        if cursor.rowcount == 0:
-            raise Error(f"No existe la categoria del producto: {categoria_db}")
         return int(cursor.lastrowid)
 
     def _limpiar_panel_pedido_actual(self) -> None:
@@ -1028,6 +1095,9 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         sql = """
             SELECT
                 p.id_pedido,
+                p.estado_pedido,
+                p.pagado,
+                p.metodo_pago,
                 ptm.ticket_numero,
                 CASE
                     WHEN p.id_mesa IS NULL OR p.tipo_pedido = 'Para llevar' THEN 'Para llevar'
@@ -1049,7 +1119,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 ON m.id_mesa = p.id_mesa
             LEFT JOIN pedidos_ticket_map ptm
                 ON ptm.id_pedido = p.id_pedido
-            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación')
+            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido')
             ORDER BY p.id_pedido DESC, dp.id_detalle ASC
         """
 
@@ -1079,19 +1149,34 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             orden = agrupadas.get(id_pedido)
             if orden is None:
                 ticket_bd = int(fila.get("ticket_numero") or 0)
+                estado_pedido_bd = str(fila.get("estado_pedido") or "Enviado a cocina")
+                if estado_pedido_bd in ["En cocina", "Abierto"]:
+                    estado_pedido_bd = "Enviado a cocina"
+                    
                 orden = {
                     "ticket": ticket_bd or ticket_por_pedido.get(id_pedido, id_pedido),
                     "mesa": self._normalize_mesa_text(str(fila.get("mesa") or "Para llevar")),
-                    "estado": "Enviado a cocina",
+                    "estado": estado_pedido_bd,
                     "items": [],
                     "id_pedido": id_pedido,
+                    "pagado": bool(fila.get("pagado")),
+                    "metodo_pago": str(fila.get("metodo_pago") or ""),
                 }
                 agrupadas[id_pedido] = orden
-
-            item_estado = self._normalizar_estado_pendiente(str(fila.get("estado_item") or ""))
-            estado_actual = self._normalizar_estado_pendiente(str(orden.get("estado") or ""))
-            if item_estado == "En preparación" or (item_estado == "Enviado a cocina" and estado_actual == "En espera"):
-                orden["estado"] = item_estado
+            else:
+                estado_pedido_bd = str(fila.get("estado_pedido") or orden["estado"])
+                if estado_pedido_bd in ["En cocina", "Abierto"]:
+                    estado_pedido_bd = "Enviado a cocina"
+                orden["estado"] = estado_pedido_bd
+                
+            estado_item_bd = str(fila.get("estado_item") or "")
+            if estado_item_bd in ["En preparación", "En preparacion"]:
+                orden["estado"] = "En preparación"
+            elif estado_item_bd == "Listo" and orden["estado"] != "Listo":
+                # Si por alguna razon un item esta listo pero el pedido no se actualizo
+                pass
+            elif estado_item_bd == "Servido":
+                orden["estado"] = "Servido"
 
             orden["items"].append(
                 {
@@ -1151,13 +1236,34 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
         for orden in self._ordenes_pendientes:
             ticket = int(orden["ticket"])
-            texto = f"TICKET #{ticket:05d}  |  {orden['mesa']}  |  {orden['estado']}"
+            estado = str(orden.get("estado", ""))
+            es_listo = estado == "Listo"
+            es_servido = estado == "Servido"
+            es_prep = estado == "En preparación"
+            es_seleccionado = (ticket == ticket_seleccionado)
+            pagado = bool(orden.get("pagado", False))
+            
+            if es_servido:
+                fg_color = "#2E2A2B" if es_seleccionado else "#1B1718"
+                hover_color = "#3C3839" if es_seleccionado else "#2E2A2B"
+            elif es_listo:
+                fg_color = "#2F5C36" if es_seleccionado else "#1F4225"
+                hover_color = "#387040" if es_seleccionado else "#2F5C36"
+            elif es_prep:
+                fg_color = "#997300" if es_seleccionado else "#664D00"
+                hover_color = "#B38600" if es_seleccionado else "#997300"
+            else:
+                fg_color = "#8C1A11" if es_seleccionado else "#2A1B1B"
+                hover_color = "#A62216"
+                
+            texto_pago = " (PAGO)" if pagado else ""
+            texto = f"TICKET #{ticket:05d}  |  {orden['mesa']}  |  {estado}{texto_pago}"
             ctk.CTkButton(
                 self._pendientes_list_container,
                 text=texto,
                 anchor="w",
-                fg_color="#8C1A11" if ticket == ticket_seleccionado else "#2A1B1B",
-                hover_color="#A62216",
+                fg_color=fg_color,
+                hover_color=hover_color,
                 text_color="#F4EBD0",
                 font=("Segoe UI", 11, "bold"),
                 command=lambda t=ticket: self._refrescar_ventana_pendientes(t),
@@ -1233,80 +1339,60 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                     wraplength=360,
                     justify="left",
                 ).grid(row=1, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 4))
-
-            item_actions = ctk.CTkFrame(item_frame, fg_color="transparent")
-            item_actions.grid(row=2, column=0, columnspan=2, sticky="ew", padx=10, pady=(0, 8))
-            item_actions.grid_columnconfigure((0, 1, 2, 3), weight=1)
-
+                
+        es_listo = self._normalizar_estado_pendiente(str(orden_activa.get("estado") or "")) in {"Listo", "Servido"}
+        es_servido = self._normalizar_estado_pendiente(str(orden_activa.get("estado") or "")) == "Servido"
+        
+        # Total
+        total_suma = sum(float(it.get("precio", 0.0)) * max(1, int(it.get("cantidad", 1))) for it in orden_activa.get("items", []))
+        total_frame = ctk.CTkFrame(self._pendientes_detail_container, fg_color="#180C0D", corner_radius=8)
+        total_frame.pack(fill="x", padx=14, pady=(14, 0))
+        ctk.CTkLabel(total_frame, text="Total:", text_color="#F4EBD0", font=("Segoe UI", 16, "bold")).pack(side="left", padx=10, pady=10)
+        ctk.CTkLabel(total_frame, text=f"${total_suma:.2f}", text_color="#4FA64F", font=("Segoe UI", 16, "bold")).pack(side="right", padx=10, pady=10)
+        
+        if es_servido:
+            metodo = str(orden_activa.get("metodo_pago") or "Efectivo")
+            metodo_frame = ctk.CTkFrame(self._pendientes_detail_container, fg_color="#1B1C1F", corner_radius=8)
+            metodo_frame.pack(fill="x", padx=14, pady=(5, 0))
+            ctk.CTkLabel(metodo_frame, text="Método de pago:", text_color="#DCCAA8", font=("Segoe UI", 12)).pack(side="left", padx=10, pady=5)
+            ctk.CTkLabel(metodo_frame, text=metodo, text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).pack(side="right", padx=10, pady=5)
+        
+        if not es_servido:
+            acciones = ctk.CTkFrame(self._pendientes_detail_container, fg_color="transparent")
+            acciones.pack(anchor="w", padx=14, pady=(14, 0))
+    
             ctk.CTkButton(
-                item_actions,
-                text="+",
-                width=34,
-                height=28,
-                fg_color="#4FA64F",
-                hover_color="#66BB66",
-                text_color="#0F2010",
-                state="normal" if es_editable else "disabled",
-                command=lambda t=ticket_seleccionado, i=index: self._incrementar_item_pendiente(t, i),
-            ).grid(row=0, column=0, sticky="w")
-
-            ctk.CTkButton(
-                item_actions,
-                text="-",
-                width=34,
-                height=28,
-                fg_color="#8C1A11",
-                hover_color="#A1241A",
-                text_color="#F4EBD0",
-                state="normal" if es_editable else "disabled",
-                command=lambda t=ticket_seleccionado, i=index: self._reducir_item_pendiente(t, i),
-            ).grid(row=0, column=1)
-
-            ctk.CTkButton(
-                item_actions,
-                text="Nota",
-                height=28,
+                acciones,
+                text="Editar en panel",
                 fg_color="#3A2524",
                 hover_color="#503231",
                 text_color="#F4EBD0",
+                font=("Segoe UI", 11, "bold"),
                 state="normal" if es_editable else "disabled",
-                command=lambda t=ticket_seleccionado, i=index: self._editar_nota_item_pendiente(t, i),
-            ).grid(row=0, column=2, sticky="ew", padx=6)
+                command=lambda t=ticket_seleccionado: self._cargar_pedido_pendiente_en_panel(t),
+            ).pack(side="left", padx=(0, 8))
 
             ctk.CTkButton(
-                item_actions,
-                text="Eliminar",
-                height=28,
-                fg_color="#5E2020",
-                hover_color="#7B2A2A",
+                acciones,
+                text="Cancelar pedido",
+                fg_color="#8C1A11",
+                hover_color="#A1241A",
                 text_color="#F4EBD0",
-                state="normal" if es_editable else "disabled",
-                command=lambda t=ticket_seleccionado, i=index: self._eliminar_item_pendiente(t, i),
-            ).grid(row=0, column=3, sticky="e")
-
-        acciones = ctk.CTkFrame(self._pendientes_detail_container, fg_color="transparent")
-        acciones.pack(anchor="w", padx=14, pady=(14, 0))
-
-        ctk.CTkButton(
-            acciones,
-            text="Editar en panel",
-            fg_color="#3A2524",
-            hover_color="#503231",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 11, "bold"),
-            state="normal" if es_editable else "disabled",
-            command=lambda t=ticket_seleccionado: self._cargar_pedido_pendiente_en_panel(t),
-        ).pack(side="left", padx=(0, 8))
-
-        ctk.CTkButton(
-            acciones,
-            text="Cancelar pedido",
-            fg_color="#8C1A11",
-            hover_color="#A1241A",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 11, "bold"),
-            command=lambda t=ticket_seleccionado: self._cancelar_pedido_pendiente(t),
-        ).pack(side="left")
+                font=("Segoe UI", 11, "bold"),
+                state="disabled" if es_listo else "normal",
+                command=lambda t=ticket_seleccionado: self._cancelar_pedido_pendiente(t),
+            ).pack(side="left", padx=(0, 8))
+            
+            ctk.CTkButton(
+                acciones,
+                text="Cerrar y Pagar",
+                fg_color="#4FA64F",
+                hover_color="#66BB66",
+                text_color="#0F2010",
+                font=("Segoe UI", 11, "bold"),
+                state="normal",
+                command=lambda t=ticket_seleccionado: self._abrir_modal_pago(t),
+            ).pack(side="left")
 
     def _actualizar_estado_pedido_desde_cocina(self, ticket: int, estado: str) -> None:
         orden = self._buscar_orden(ticket)
@@ -1316,11 +1402,20 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         orden["estado"] = estado
         if estado == "Listo":
             self._mostrar_notificacion(f"Pedido listo: TICKET #{ticket:05d}", "#2F5C36")
+            # Cambiar mesa a Ocupada (Rojo)
+            mesa_texto = str(orden.get("mesa", ""))
+            if "MESA" in mesa_texto.upper() and self._mesas_controller is not None:
+                numero = self._extraer_numero_mesa(mesa_texto)
+                if numero is not None:
+                    for m_id, m_data in self._mesas_por_id.items():
+                        if m_data.get("numero_mesa") == numero:
+                            self._mesas_controller._cambiar_estado_mesa(m_id, "Ocupada")
+                            break
         self._refrescar_ventana_pendientes(ticket)
 
     def _pedido_pendiente_editable(self, orden: dict[str, object]) -> bool:
         estado = self._normalizar_estado_pendiente(str(orden.get("estado") or ""))
-        return estado not in {"En preparación", "Listo"}
+        return estado not in {"En preparación", "Listo", "Servido"}
 
     @staticmethod
     def _normalizar_estado_pendiente(estado: str) -> str:
@@ -1331,6 +1426,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             return "Listo"
         if texto == "en espera":
             return "En espera"
+        if texto == "servido":
+            return "Servido"
         return "Enviado a cocina"
 
     def _incrementar_item_pendiente(self, ticket: int, item_index: int) -> None:
@@ -1394,6 +1491,123 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             return
         self._retirar_orden_pendiente(orden)
         self._mostrar_notificacion(f"Pedido #{int(orden.get('id_pedido') or 0):05d} cancelado", "#8C1A11")
+
+    def _abrir_modal_pago(self, ticket: int) -> None:
+        orden = self._buscar_orden(ticket)
+        if orden is None:
+            return
+            
+        if hasattr(self, "_pago_modal") and self._pago_modal is not None and self._pago_modal.winfo_exists():
+            self._pago_modal.focus()
+            return
+            
+        self._pago_modal = ctk.CTkToplevel(self)
+        self._pago_modal.title(f"Pagar Pedido - Ticket #{ticket:05d}")
+        self._pago_modal.geometry("400x550")
+        self._pago_modal.grab_set()
+        self._pago_modal.configure(fg_color="#180C0D")
+        
+        # Centrar en pantalla
+        self._pago_modal.update_idletasks()
+        width = self._pago_modal.winfo_width()
+        height = self._pago_modal.winfo_height()
+        x = (self._pago_modal.winfo_screenwidth() // 2) - (width // 2)
+        y = (self._pago_modal.winfo_screenheight() // 2) - (height // 2)
+        self._pago_modal.geometry(f"+{x}+{y}")
+        
+        # Ticket Content
+        header = ctk.CTkFrame(self._pago_modal, fg_color="#2A1718", corner_radius=0)
+        header.pack(fill="x", pady=(0, 10))
+        ctk.CTkLabel(header, text=f"TICKET #{ticket:05d}", text_color="#F4EBD0", font=("Segoe UI", 20, "bold")).pack(pady=10)
+        ctk.CTkLabel(header, text=f"Mesa: {orden['mesa']}", text_color="#DCCAA8", font=("Segoe UI", 12)).pack(pady=(0, 10))
+        
+        items_frame = ctk.CTkScrollableFrame(self._pago_modal, fg_color="#1B1C1F")
+        items_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        
+        total_suma = 0.0
+        for item in orden.get("items", []):
+            cantidad = max(1, int(item.get("cantidad") or 1))
+            precio = float(item.get("precio") or 0.0)
+            subtotal = precio * cantidad
+            total_suma += subtotal
+            
+            row = ctk.CTkFrame(items_frame, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+            ctk.CTkLabel(row, text=f"{cantidad}x {item['nombre']}", text_color="#F4EBD0", font=("Segoe UI", 12)).pack(side="left")
+            ctk.CTkLabel(row, text=f"${subtotal:.2f}", text_color="#F0A58E", font=("Segoe UI", 12)).pack(side="right")
+            
+        total_frame = ctk.CTkFrame(self._pago_modal, fg_color="#180C0D")
+        total_frame.pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(total_frame, text="TOTAL A PAGAR:", text_color="#F4EBD0", font=("Segoe UI", 18, "bold")).pack(side="left")
+        ctk.CTkLabel(total_frame, text=f"${total_suma:.2f}", text_color="#4FA64F", font=("Segoe UI", 20, "bold")).pack(side="right")
+        
+        ctk.CTkLabel(self._pago_modal, text="Método de Pago:", text_color="#F4EBD0", font=("Segoe UI", 14, "bold")).pack(pady=(10, 5))
+        metodo_var = ctk.StringVar(value="Efectivo")
+        metodos = ctk.CTkSegmentedButton(
+            self._pago_modal,
+            values=["Efectivo", "Pago Móvil", "Tarjeta"],
+            variable=metodo_var,
+            font=("Segoe UI", 12, "bold"),
+            fg_color="#3A1E18",
+            selected_color="#E8A995",
+            selected_hover_color="#F8B7A5",
+            unselected_color="#2A1718"
+        )
+        metodos.pack(fill="x", padx=20, pady=5)
+        
+        # Cerrar Mesa Button
+        ctk.CTkButton(
+            self._pago_modal,
+            text="Confirmar Pago y Cerrar Mesa",
+            fg_color="#4FA64F",
+            hover_color="#66BB66",
+            text_color="#0F2010",
+            font=("Segoe UI", 14, "bold"),
+            height=40,
+            command=lambda t=ticket: self._cerrar_pedido_listo_y_pagado(t, metodo_var.get())
+        ).pack(fill="x", padx=20, pady=20)
+
+    def _cerrar_pedido_listo_y_pagado(self, ticket: int, metodo_pago: str = "") -> None:
+        orden = self._buscar_orden(ticket)
+        if orden is None:
+            return
+        id_pedido = int(orden.get("id_pedido") or 0)
+        if id_pedido <= 0:
+            return
+            
+        connection = self._connect_db()
+        if connection is not None:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("UPDATE pedidos SET estado_pedido = 'Servido', pagado = 1, metodo_pago = %s WHERE id_pedido = %s", (metodo_pago, id_pedido))
+                cursor.execute("UPDATE detalle_pedido SET estado_item = 'Servido' WHERE id_pedido = %s", (id_pedido,))
+                connection.commit()
+            except Error as exc:
+                self._ultimo_error_bd = str(exc)
+                connection.rollback()
+                self._mostrar_notificacion("Error al cerrar pedido", "#6F2C2C")
+                return
+            finally:
+                connection.close()
+
+        orden["estado"] = "Servido"
+        orden["pagado"] = True
+        orden["metodo_pago"] = metodo_pago
+        self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cerrado y pagado", "#2F5C36")
+        self._refrescar_ventana_pendientes(ticket)
+        
+        if hasattr(self, "_pago_modal") and self._pago_modal is not None and self._pago_modal.winfo_exists():
+            self._pago_modal.destroy()
+            self._pago_modal = None
+            
+        mesa_texto = str(orden.get("mesa", ""))
+        if "MESA" in mesa_texto.upper() and self._mesas_controller is not None:
+            numero = self._extraer_numero_mesa(mesa_texto)
+            if numero is not None:
+                for m_id, m_data in self._mesas_por_id.items():
+                    if m_data.get("numero_mesa") == numero:
+                        self._mesas_controller.liberar_mesa(m_id)
+                        break
 
     def _cancelar_pedido_pendiente(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
@@ -1505,6 +1719,16 @@ class MeseroDesignWindow(ctk.CTkToplevel):
     def _retirar_orden_pendiente(self, orden: dict[str, object]) -> None:
         if orden in self._ordenes_pendientes:
             self._ordenes_pendientes.remove(orden)
+
+        mesa_texto = str(orden.get("mesa", ""))
+        if "Mesa" in mesa_texto and self._mesas_controller is not None:
+            numero = self._extraer_numero_mesa(mesa_texto)
+            if numero is not None:
+                for m_id, m_data in self._mesas_por_id.items():
+                    if m_data.get("numero_mesa") == numero:
+                        self._mesas_controller.liberar_mesa(m_id)
+                        break
+
         ticket_restante = int(self._ordenes_pendientes[0]["ticket"]) if self._ordenes_pendientes else None
         self._refrescar_ventana_pendientes(ticket_restante)
 

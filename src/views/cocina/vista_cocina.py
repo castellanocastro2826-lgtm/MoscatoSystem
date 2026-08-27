@@ -357,6 +357,11 @@ class CocinaDesignWindow(ctk.CTkToplevel):
 
     def actualizar_monitor(self, nuevos_pedidos: list[dict], callback_notificar) -> None:
         """Borra los tickets anteriores y renderiza los nuevos provenientes de la BD."""
+        if not hasattr(self, "_primera_carga"):
+            self._primera_carga = False
+            if nuevos_pedidos:
+                self._reproducir_campanita()
+                
         for card in self._ticket_cards:
             card.destroy()
         self._ticket_cards.clear()

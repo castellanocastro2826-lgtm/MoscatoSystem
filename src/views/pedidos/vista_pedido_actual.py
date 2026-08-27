@@ -61,6 +61,22 @@ class VistaPedidoActual:
 
         self._ticket_label = ctk.CTkLabel(header, text=f"TICKET #{self.ticket_numero:05d}", text_color="#D6C9A8", font=("Segoe UI", 11, "bold"))
         self._ticket_label.grid(row=1, column=0, sticky="w", pady=(4, 0))
+        
+        self.tipo_pedido_var = ctk.StringVar(value="Mesa")
+        self._tipo_pedido_switch = ctk.CTkSegmentedButton(
+            header,
+            values=["Mesa", "Para llevar"],
+            variable=self.tipo_pedido_var,
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#3A1E18",
+            selected_color="#E8A995",
+            selected_hover_color="#F8B7A5",
+            unselected_color="#2A1718",
+            unselected_hover_color="#3A1E18"
+        )
+        self._tipo_pedido_switch.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 0))
+        
+        pass
 
         self._items_container = ctk.CTkScrollableFrame(self.frame, fg_color="#2A1718", corner_radius=0)
         self._items_container.grid(row=1, column=0, sticky="nsew", padx=14, pady=(0, 10))
