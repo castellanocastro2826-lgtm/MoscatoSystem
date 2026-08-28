@@ -32,13 +32,15 @@ class ModeloUsuarios:
 
         sql = """
             SELECT
-                id_usuario,
-                nombre,
-                rol,
-                activo,
-                fecha_actualizacion
-            FROM usuarios
-            ORDER BY nombre ASC
+                u.id_usuario,
+                CONCAT(e.nombres, ' ', e.apellidos) AS nombre,
+                u.username,
+                u.rol,
+                u.activo,
+                u.fecha_actualizacion
+            FROM usuarios AS u
+            INNER JOIN empleados AS e ON e.id_empleado = u.id_empleado
+            ORDER BY e.nombres ASC, e.apellidos ASC
         """
 
         try:
@@ -56,6 +58,7 @@ class ModeloUsuarios:
                 {
                     "id": int(row.get("id_usuario") or 0),
                     "name": str(row.get("nombre") or "-"),
+                    "username": str(row.get("username") or "-"),
                     "role": self._rol_db_a_ui(str(row.get("rol") or "Mesonero")),
                     "status": "Fichado" if int(row.get("activo") or 0) == 1 else "Fuera de Turno",
                     "time": row.get("fecha_actualizacion"),
@@ -63,23 +66,29 @@ class ModeloUsuarios:
             )
         return empleados
 
-    def crear_empleado(self, nombre: str, rol_ui: str) -> bool:
+    def crear_empleado(self, nombre: str, rol_ui: str, username: str | None = None, password: str | None = None) -> bool:
         connection = self._connect()
         if connection is None:
             return False
 
         rol_db = self._rol_ui_a_db(rol_ui)
-        username_base = self._slug_username(nombre)
-        username = self._build_unique_username(connection, username_base)
-
-        sql = """
-            INSERT INTO usuarios (nombre, username, password, rol, activo)
-            VALUES (%s, %s, %s, %s, 1)
-        """
-
         try:
+            nombres, apellidos = self._separar_nombre(nombre)
+            username = (username or self._slug_username(nombre)).strip()
+            password = password or "123456"
+            documento = self._build_unique_documento(connection, username)
             with connection.cursor() as cursor:
-                cursor.execute(sql, (nombre, username, "123456", rol_db))
+                cursor.execute(
+                    """INSERT INTO empleados (nombres, apellidos, documento_identidad, cargo, activo)
+                       VALUES (%s, %s, %s, %s, 1)""",
+                    (nombres, apellidos, documento, rol_db),
+                )
+                empleado_id = cursor.lastrowid
+                cursor.execute(
+                    """INSERT INTO usuarios (id_empleado, username, password, rol, activo)
+                       VALUES (%s, %s, %s, %s, 1)""",
+                    (empleado_id, username, password, rol_db),
+                )
             connection.commit()
             return True
         except Error:
@@ -88,21 +97,32 @@ class ModeloUsuarios:
         finally:
             connection.close()
 
-    def actualizar_empleado(self, emp_id: int, nombre: str, rol_ui: str) -> bool:
+    def actualizar_empleado(self, emp_id: int, nombre: str, rol_ui: str, username: str | None = None, password: str | None = None) -> bool:
         connection = self._connect()
         if connection is None:
             return False
 
         rol_db = self._rol_ui_a_db(rol_ui)
-        sql = """
-            UPDATE usuarios
-            SET nombre = %s, rol = %s
-            WHERE id_usuario = %s
-        """
-
         try:
             with connection.cursor() as cursor:
-                cursor.execute(sql, (nombre, rol_db, emp_id))
+                nombres, apellidos = self._separar_nombre(nombre)
+                cursor.execute(
+                    """UPDATE empleados AS e
+                       INNER JOIN usuarios AS u ON u.id_empleado = e.id_empleado
+                       SET e.nombres = %s, e.apellidos = %s, e.cargo = %s
+                       WHERE u.id_usuario = %s""",
+                    (nombres, apellidos, rol_db, emp_id),
+                )
+                fields = ["rol = %s"]
+                params: list[Any] = [rol_db]
+                if username:
+                    fields.append("username = %s")
+                    params.append(username.strip())
+                if password:
+                    fields.append("password = %s")
+                    params.append(password)
+                params.append(emp_id)
+                cursor.execute(f"UPDATE usuarios SET {', '.join(fields)} WHERE id_usuario = %s", tuple(params))
             connection.commit()
             return True
         except Error:
@@ -143,6 +163,22 @@ class ModeloUsuarios:
                     return candidate
                 seq += 1
                 candidate = f"{base}{seq}"
+
+    def _build_unique_documento(self, connection, base: str) -> str:
+        candidate = f"USR-{base or 'empleado'}"
+        seq = 1
+        with connection.cursor() as cursor:
+            while True:
+                cursor.execute("SELECT 1 FROM empleados WHERE documento_identidad = %s LIMIT 1", (candidate,))
+                if cursor.fetchone() is None:
+                    return candidate
+                seq += 1
+                candidate = f"USR-{base or 'empleado'}-{seq}"
+
+    @staticmethod
+    def _separar_nombre(nombre: str) -> tuple[str, str]:
+        partes = str(nombre).strip().split(None, 1)
+        return partes[0], partes[1] if len(partes) > 1 else "Sin apellido"
 
     def _connect(self):
         if mysql is None:

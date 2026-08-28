@@ -50,6 +50,9 @@ class MesasController:
     def solicitar_precuenta(self, id_mesa: int) -> bool:
         return self._cambiar_estado_mesa(id_mesa, "Atencion")
 
+    def ocupar_mesa(self, id_mesa: int) -> bool:
+        return self._cambiar_estado_mesa(id_mesa, "Ocupada")
+
     def liberar_mesa(self, id_mesa: int) -> bool:
         return self._cambiar_estado_mesa(id_mesa, "Libre")
 

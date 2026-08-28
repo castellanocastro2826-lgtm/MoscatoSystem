@@ -17,6 +17,7 @@ from src.controllers.mesas.controlador_mesas import MesasController
 from src.controllers.pedidos.controlador_pedido_actual import ControladorPedidoActual
 from src.models.mesas.modelo_mesas import MesasModel
 from src.models.pedidos.modelo_pedido_actual import ModeloPedidoActual
+from src.models.productos.imagenes_menu import buscar_imagen_local
 from src.views.mesas.vista_mesas import MesasView
 from src.views.pedidos.vista_pedido_actual import VistaPedidoActual
 
@@ -389,7 +390,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 nombre_limpio,
                 f"${producto['precio']:,.0f}",
                 str(producto.get("descripcion", "")),
-                producto.get("imagen")
+                buscar_imagen_local(str(producto.get("nombre", "")))
             )
             self._enlazar_click_producto(card, producto)
             self._product_cards.append(card)
@@ -411,13 +412,14 @@ class MeseroDesignWindow(ctk.CTkToplevel):
     def _cargar_productos_catalogo(self) -> None:
         # Mapeo de categorías en BD -> Categorías en UI
         categorias = {
-            "Moscato Chino - Compartir": "Combos",
-            "Moscato Chino - Personal": "Comida China",
-            "Moscato Broaster": "Combos",
-            "Promociones": "Promos",
-            "Comida": "Comida China",
-            "Bebida": "Bebidas",
-            "Postre": "Comida China",
+            "moscato chino - compartir": "Combos",
+            "moscato chino - personal": "Comida China",
+            "moscato broaster": "Combos",
+            "promociones": "Promos",
+            "comida": "Comida China",
+            "bebida": "Bebidas",
+            "bebidas": "Bebidas",
+            "postre": "Comida China",
         }
         connection = self._connect_db()
         if connection is None:
@@ -426,16 +428,28 @@ class MeseroDesignWindow(ctk.CTkToplevel):
 
         try:
             with connection.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT pr.id_producto, pr.nombre, pr.precio,
-                            ca.nombre AS categoria_db, pr.descripcion
-                    FROM productos pr
-                    INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
-                    WHERE ca.activo = 1
-                    ORDER BY ca.id_categoria, pr.id_producto
-                    """
-                )
+                try:
+                    cursor.execute(
+                        """
+                        SELECT pr.id_producto, pr.nombre, pr.precio,
+                                ca.nombre AS categoria_db, pr.descripcion
+                        FROM productos pr
+                        INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
+                        WHERE ca.activo = 1 AND pr.activo = 1 AND pr.disponible = 1
+                        ORDER BY ca.id_categoria, pr.id_producto
+                        """
+                    )
+                except Error:
+                    cursor.execute(
+                        """
+                        SELECT pr.id_producto, pr.nombre, pr.precio,
+                                ca.nombre AS categoria_db, pr.descripcion
+                        FROM productos pr
+                        INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
+                        WHERE ca.activo = 1 AND pr.activo = 1 AND pr.disponible = 1
+                        ORDER BY ca.id_categoria, pr.id_producto
+                        """
+                    )
                 productos_por_categoria: dict[str, list[dict[str, object]]] = {
                     "Comida China": [],
                     "Combos": [],
@@ -449,7 +463,8 @@ class MeseroDesignWindow(ctk.CTkToplevel):
                 for producto in filas:
                     print("DEBUG - Producto:", producto["nombre"], "Categoria DB:", producto["categoria_db"])
                     # Obtenemos la categoria mapeada, si no existe la mandamos por defecto a "Comida China"
-                    boton_categoria = categorias.get(str(producto["categoria_db"]), "Comida China")
+                    categoria_db = str(producto["categoria_db"]).strip().casefold()
+                    boton_categoria = categorias.get(categoria_db, "Comida China")
                     
                     producto["categoria_db"] = str(producto["categoria_db"])
                     producto["precio"] = float(producto["precio"])
@@ -661,6 +676,9 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         )
         self._mostrar_notificacion(f"Ticket #{ticket:05d} enviado a cocina", "#2F5C36")
         self._reproducir_campanita()
+
+        if tipo_pedido_ui == "Mesa" and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
+            self._mesas_controller.ocupar_mesa(self._mesa_seleccionada_id)
 
         self.after(5000, lambda t=ticket: self._marcar_orden_en_espera(t))
         self._ticket_numero += 1
@@ -1600,14 +1618,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             self._pago_modal.destroy()
             self._pago_modal = None
             
-        mesa_texto = str(orden.get("mesa", ""))
-        if "MESA" in mesa_texto.upper() and self._mesas_controller is not None:
-            numero = self._extraer_numero_mesa(mesa_texto)
-            if numero is not None:
-                for m_id, m_data in self._mesas_por_id.items():
-                    if m_data.get("numero_mesa") == numero:
-                        self._mesas_controller.liberar_mesa(m_id)
-                        break
+        self._liberar_mesa_de_orden(orden)
 
     def _cancelar_pedido_pendiente(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
@@ -1621,6 +1632,20 @@ class MeseroDesignWindow(ctk.CTkToplevel):
             return
         self._retirar_orden_pendiente(orden)
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cancelado", "#8C1A11")
+
+    def _liberar_mesa_de_orden(self, orden: dict[str, object]) -> None:
+        mesa_texto = str(orden.get("mesa", ""))
+        if "MESA" not in mesa_texto.upper() or self._mesas_controller is None:
+            return
+
+        numero = self._extraer_numero_mesa(mesa_texto)
+        if numero is None:
+            return
+
+        for id_mesa, mesa in self._mesas_por_id.items():
+            if int(mesa.get("numero_mesa") or 0) == numero:
+                self._mesas_controller.liberar_mesa(id_mesa)
+                return
 
     def _cargar_pedido_pendiente_en_panel(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
@@ -1720,14 +1745,7 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         if orden in self._ordenes_pendientes:
             self._ordenes_pendientes.remove(orden)
 
-        mesa_texto = str(orden.get("mesa", ""))
-        if "Mesa" in mesa_texto and self._mesas_controller is not None:
-            numero = self._extraer_numero_mesa(mesa_texto)
-            if numero is not None:
-                for m_id, m_data in self._mesas_por_id.items():
-                    if m_data.get("numero_mesa") == numero:
-                        self._mesas_controller.liberar_mesa(m_id)
-                        break
+        self._liberar_mesa_de_orden(orden)
 
         ticket_restante = int(self._ordenes_pendientes[0]["ticket"]) if self._ordenes_pendientes else None
         self._refrescar_ventana_pendientes(ticket_restante)

@@ -169,7 +169,19 @@ class LoginWindow(ctk.CTk):
             try:
                 with connection.cursor(dictionary=True) as cursor:
                     cursor.execute(
-                        "SELECT id_usuario, nombre, username, rol FROM usuarios WHERE username = %s AND password = %s AND activo = 1",
+                        """
+                        SELECT
+                            u.id_usuario,
+                            CONCAT(e.nombres, ' ', e.apellidos) AS nombre,
+                            u.username,
+                            u.rol
+                        FROM usuarios AS u
+                        INNER JOIN empleados AS e ON e.id_empleado = u.id_empleado
+                        WHERE u.username = %s
+                          AND u.password = %s
+                          AND u.activo = 1
+                          AND e.activo = 1
+                        """,
                         (username, password),
                     )
                     user = cursor.fetchone()
