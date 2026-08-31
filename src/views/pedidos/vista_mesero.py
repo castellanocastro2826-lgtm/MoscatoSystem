@@ -22,7 +22,7 @@ from src.views.mesas.vista_mesas import MesasView
 from src.views.pedidos.vista_pedido_actual import VistaPedidoActual
 
 
-class MeseroDesignWindow(ctk.CTkToplevel):
+class MeseroDesignWindow(ctk.CTkFrame):
     """Vista de referencia del terminal de mesero (solo diseno UI)."""
 
     SYNC_PEDIDOS_MS = 3000
@@ -30,9 +30,6 @@ class MeseroDesignWindow(ctk.CTkToplevel):
     def __init__(self, master: tk.Misc, usuario: str, mesa_actual: str = "Mesa 1") -> None:
         super().__init__(master)
         self.parent = master
-        self.title("Terminal de Mesero - Toma de Pedidos")
-        self.geometry("1320x780")
-        self.minsize(1180, 680)
         self.configure(fg_color="#141517")
 
         self.usuario = usuario
@@ -2168,3 +2165,9 @@ class MeseroDesignWindow(ctk.CTkToplevel):
         icon = ImageTk.PhotoImage(image)
         self._icon_refs.append(icon)
         return icon
+
+    def _logout_to_login(self) -> None:
+        if hasattr(self.parent, "show_login"):
+            self.parent.show_login()
+        else:
+            self.destroy()

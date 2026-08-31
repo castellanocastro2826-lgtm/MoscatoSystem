@@ -36,7 +36,9 @@ class EventBus:
         for callback in callbacks:
             try:
                 callback(evento)
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.error(f"Error in EventBus callback for event '{event_name}': {e}", exc_info=True)
                 continue
 
 

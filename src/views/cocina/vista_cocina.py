@@ -8,15 +8,12 @@ except ImportError:  # pragma: no cover - fallback fuera de Windows
     winsound = None
 
 
-class CocinaDesignWindow(ctk.CTkToplevel):
+class CocinaDesignWindow(ctk.CTkFrame):
     """Vista de referencia del monitor de cocina (solo diseno UI)."""
 
     def __init__(self, master: tk.Misc, usuario: str = "Cocina Central") -> None:
         super().__init__(master)
         self.parent = master
-        self.title("Monitor de Cocina - Pedidos Activos")
-        self.geometry("1320x780")
-        self.minsize(980, 680)
         self.configure(fg_color="#141517")
 
         self.usuario = usuario
@@ -454,9 +451,10 @@ class CocinaDesignWindow(ctk.CTkToplevel):
         controlador = getattr(self, "controlador", None)
         if controlador is not None and hasattr(controlador, "desactivar"):
             controlador.desactivar()
-        self.destroy()
-        if self.parent is not None and self.parent.winfo_exists():
-            self.parent.deiconify()
+        if hasattr(self.parent, "show_login"):
+            self.parent.show_login()
+        else:
+            self.destroy()
 
     def destroy(self) -> None:
         controlador = getattr(self, "controlador", None)

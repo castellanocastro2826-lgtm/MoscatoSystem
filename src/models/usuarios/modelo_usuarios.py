@@ -66,6 +66,34 @@ class ModeloUsuarios:
             )
         return empleados
 
+    def autenticar_usuario(self, username: str, password: str) -> dict[str, Any] | None:
+        connection = self._connect()
+        if connection is None:
+            raise ConnectionError("No fue posible conectar a MySQL")
+        
+        sql = """
+            SELECT
+                u.id_usuario,
+                CONCAT(e.nombres, ' ', e.apellidos) AS nombre,
+                u.username,
+                u.rol
+            FROM usuarios AS u
+            INNER JOIN empleados AS e ON e.id_empleado = u.id_empleado
+            WHERE u.username = %s
+              AND u.password = %s
+              AND u.activo = 1
+              AND e.activo = 1
+        """
+        try:
+            with connection.cursor(dictionary=True) as cursor:
+                cursor.execute(sql, (username, password))
+                user = cursor.fetchone()
+                return user
+        except Error as exc:
+            raise ConnectionError(f"Error al verificar credenciales: {exc}")
+        finally:
+            connection.close()
+
     def crear_empleado(self, nombre: str, rol_ui: str, username: str | None = None, password: str | None = None) -> bool:
         connection = self._connect()
         if connection is None:

@@ -216,3 +216,11 @@ INSERT INTO productos (id_producto, nombre, descripcion, precio, id_categoria) V
 (40, 'jugo mora', '', 8000.00, 5),
 (41, 'jugo mango', '', 8000.00, 5),
 (42, 'Serv. lumpias', '', 12000.00, 2);
+-- =========================
+-- ÍNDICES PARA RENDIMIENTO
+-- =========================
+ALTER TABLE mesas ADD INDEX idx_mesas_estado (estado);
+ALTER TABLE pedidos ADD INDEX idx_pedidos_estado (estado_pedido);
+ALTER TABLE pedidos ADD INDEX idx_pedidos_fechas (fecha_apertura, fecha_cierre);
+ALTER TABLE detalle_pedido ADD INDEX idx_detalle_estado (estado_item);
+

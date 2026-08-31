@@ -15,7 +15,7 @@ from src.models.pedidos.modelo_registro_pedidos import RegistroPedidosModel
 from src.views.pedidos.vista_registro_pedidos import RegistroPedidosView
 from src.controllers.pedidos.controlador_registro_pedidos import RegistroPedidosController
 
-class UnifiedDashboardWindow(ctk.CTkToplevel):
+class UnifiedDashboardWindow(ctk.CTkFrame):
     """Vista del panel unificado de administracion (solo UI y eventos)."""
 
     COLORS = {
@@ -64,11 +64,6 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         self.id_usuario = id_usuario
         self.controller = controller
 
-        self.protocol("WM_DELETE_WINDOW", self.parent.destroy)
-
-        self.geometry("1100x750")
-        self.minsize(1100, 720)
-        self.title("Moscato | Gestion de Menu")
         self.configure(fg_color=self.COLORS["wine_bg"])
 
         self._rows = []
@@ -295,9 +290,10 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
             self.menu_scroll.grid_columnconfigure(col, weight=weight, uniform="menu_columns", minsize=(260, 170, 110, 120, 190)[col])
 
     def _logout_to_login(self) -> None:
-        self.destroy()
-        if self.parent is not None and self.parent.winfo_exists():
-            self.parent.deiconify()
+        if hasattr(self.parent, "show_login"):
+            self.parent.show_login()
+        else:
+            self.destroy()
 
     def _build_main_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
