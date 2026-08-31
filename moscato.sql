@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS categorias (
 CREATE TABLE IF NOT EXISTS empleados (
     id_empleado INT PRIMARY KEY AUTO_INCREMENT,
     nombres VARCHAR(100) NOT NULL,
-    apellidos VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL, 
     documento_identidad VARCHAR(20) UNIQUE NOT NULL,
     telefono VARCHAR(20) NULL,
     cargo VARCHAR(50) NOT NULL,
@@ -47,6 +47,20 @@ CREATE TABLE IF NOT EXISTS usuarios (
     fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado)
+);
+
+-- =========================
+-- TABLA AUDITORIA
+-- =========================
+CREATE TABLE IF NOT EXISTS auditoria (
+    id_registro INT PRIMARY KEY AUTO_INCREMENT,
+    id_usuario INT NOT NULL,
+    accion VARCHAR(50) NOT NULL,
+    tabla_afectada VARCHAR(100) NOT NULL,
+    fecha_hora DATETIME DEFAULT CURRENT_TIMESTAMP,
+    detalles TEXT NULL,
+
+    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
 );
 
 -- =========================

@@ -10,6 +10,7 @@ from mysql.connector import Error
 
 from src.controllers.cocina.controlador_cocina import ControladorCocina
 from src.controllers.admin.controlador_admin import ControladorAdmin
+from src.models.auditoria.auditoria_model import AuditoriaModel
 from src.models.cocina.modelo_cocina import ModeloCocina
 from src.views.cocina.vista_cocina import CocinaDesignWindow
 from src.views.admin.vista_admin import UnifiedDashboardWindow
@@ -194,6 +195,15 @@ class LoginWindow(ctk.CTk):
                 return
 
             self.status_var.set(f"Sesion iniciada: {user['nombre']} ({user['rol']})")
+            try:
+                AuditoriaModel().registrar_accion(
+                    int(user.get("id_usuario") or 0),
+                    "LOGIN",
+                    "usuarios",
+                    f"El usuario {user['nombre']} inició sesión en el sistema.",
+                )
+            except Exception:
+                pass
             self._open_dashboard(user)
 
         except ConnectionError as exc:
@@ -209,8 +219,8 @@ class LoginWindow(ctk.CTk):
         nombre_real = str(user.get("nombre", "")).strip()
 
         if rol == "administrador":
-            vista = UnifiedDashboardWindow(self, usuario=nombre_real)
-            ControladorAdmin(vista)
+            vista = UnifiedDashboardWindow(self, usuario=nombre_real, id_usuario=int(user.get("id_usuario") or 0))
+            ControladorAdmin(vista, id_usuario=int(user.get("id_usuario") or 0))
             vista.protocol("WM_DELETE_WINDOW", self.destroy)
         elif rol == "cocinero":
             modelo = ModeloCocina()

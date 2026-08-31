@@ -3,6 +3,10 @@ import os
 import shutil
 from tkinter import filedialog
 
+from src.controllers.auditoria.auditoria_controller import AuditoriaController
+from src.models.auditoria.auditoria_model import AuditoriaModel
+from src.views.auditoria.auditoria_view import AuditoriaView
+
 
 class UnifiedDashboardWindow(ctk.CTkToplevel):
     """Vista del panel unificado de administracion (solo UI y eventos)."""
@@ -46,10 +50,11 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
 
     FONT = "Segoe UI"
 
-    def __init__(self, parent, usuario: str, controller=None, **kwargs):
+    def __init__(self, parent, usuario: str, controller=None, id_usuario: int | None = None, **kwargs):
         super().__init__(parent, **kwargs)
         self.parent = parent
         self.usuario = usuario
+        self.id_usuario = id_usuario
         self.controller = controller
 
         self.protocol("WM_DELETE_WINDOW", self.parent.destroy)
@@ -102,7 +107,7 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         self.nav_buttons = {}
         nav_items = [
             ("orders", "Pedidos", False, lambda: self._show_placeholder("orders")),
-            ("kitchen", "Auditoria", False, lambda: self._show_placeholder("kitchen")),
+            ("kitchen", "Auditoria", False, self._show_auditoria),
             ("categories", "Gestion de Menu", True, self._show_menu),
             ("users", "Gestion de Usuarios", False, self._show_users),
         ]
@@ -174,8 +179,28 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         if self.controller and hasattr(self.controller, "cargar_empleados"):
             self.controller.cargar_empleados()
 
+    def _show_auditoria(self) -> None:
+        self._activate_nav("kitchen")
+        self._replace_main_panel()
+        self._build_auditoria_panel()
+
     def _show_placeholder(self, key: str) -> None:
         self._activate_nav(key)
+
+    def _build_auditoria_panel(self):
+        self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
+        self.main_panel.grid(row=0, column=1, sticky="nsew")
+        self.main_panel.grid_columnconfigure(0, weight=1)
+        self.main_panel.grid_rowconfigure(0, weight=1)
+
+        panel = ctk.CTkFrame(self.main_panel, fg_color="transparent")
+        panel.grid(row=0, column=0, sticky="nsew", padx=18, pady=18)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(0, weight=1)
+
+        vista_auditoria = AuditoriaView(panel)
+        modelo_auditoria = AuditoriaModel()
+        AuditoriaController(modelo_auditoria, vista_auditoria)
 
     def _build_menu_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
@@ -684,7 +709,15 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
             delete_btn.grid(row=0, column=1)
 
     def get_search_query(self):
-        return self.search_entry.get().strip()
+        search_entry = getattr(self, "search_entry", None)
+        if search_entry is not None and hasattr(search_entry, "get") and search_entry.winfo_exists():
+            return search_entry.get().strip()
+
+        menu_entry = getattr(self, "menu_search_entry", None)
+        if menu_entry is not None and hasattr(menu_entry, "get") and menu_entry.winfo_exists():
+            return menu_entry.get().strip()
+
+        return ""
 
     def open_employee_form(self, empleado, on_submit):
         form = ctk.CTkToplevel(self)

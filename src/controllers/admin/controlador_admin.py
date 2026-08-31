@@ -4,6 +4,7 @@ from datetime import datetime
 from tkinter import messagebox, simpledialog
 from typing import Any
 
+from src.models.auditoria.auditoria_model import AuditoriaModel
 from src.models.productos.modelo_menu import ModeloMenu
 from src.models.productos.imagenes_menu import guardar_imagen_local, buscar_imagen_local
 from src.models.usuarios.modelo_usuarios import ModeloUsuarios
@@ -19,10 +20,13 @@ class ControladorAdmin:
         empleados_seed: list[dict[str, Any]] | None = None,
         modelo_menu: ModeloMenu | None = None,
         menu_seed: list[dict[str, Any]] | None = None,
+        id_usuario: int | None = None,
     ) -> None:
         self.vista = vista
         self.modelo = modelo or ModeloUsuarios()
         self.modelo_menu = modelo_menu or ModeloMenu()
+        self.auditoria_model = AuditoriaModel()
+        self.id_usuario = int(id_usuario) if id_usuario not in (None, "") else getattr(vista, "id_usuario", None)
         self._seed = empleados_seed or []
         self._menu_seed = menu_seed or []
         self._all_empleados: list[dict[str, Any]] = []
@@ -54,6 +58,7 @@ class ControladorAdmin:
     def _save_new_product(self, datos) -> None:
         imagen = guardar_imagen_local(datos[0], datos[4])
         if self.modelo_menu.crear_producto(*datos[:4]):
+            self._registrar_auditoria("INSERTAR", "productos", f"Se creó el producto '{datos[0]}' en categoria ID {datos[3]}.")
             self.cargar_menu()
             return
         nuevo_id = max([int(item.get("id", 0)) for item in self._all_productos] + [0]) + 1
@@ -74,9 +79,36 @@ class ControladorAdmin:
             return
         self._save_edited_product(product_id, producto, datos)
 
+    @staticmethod
+    def _detalle_cambio_producto(producto_original: dict[str, Any] | None, datos_nuevos: tuple[str, str, float, int]) -> str:
+        nombre_anterior = str((producto_original or {}).get("name", "desconocido"))
+        nombre_nuevo = str(datos_nuevos[0])
+        precio_anterior = (producto_original or {}).get("price")
+        precio_nuevo = datos_nuevos[2]
+        categoria_anterior = (producto_original or {}).get("category_id")
+        categoria_nueva = datos_nuevos[3]
+        descripcion_anterior = str((producto_original or {}).get("description", ""))
+        descripcion_nueva = str(datos_nuevos[1])
+
+        cambios: list[str] = []
+        if nombre_anterior != nombre_nuevo:
+            cambios.append(f"nombre '{nombre_anterior}' -> '{nombre_nuevo}'")
+        if descripcion_anterior != descripcion_nueva:
+            cambios.append(f"descripción '{descripcion_anterior}' -> '{descripcion_nueva}'")
+        if precio_anterior != precio_nuevo:
+            cambios.append(f"precio {precio_anterior} -> {precio_nuevo}")
+        if categoria_anterior != categoria_nueva:
+            cambios.append(f"categoría {categoria_anterior} -> {categoria_nueva}")
+        if not cambios:
+            cambios.append("datos del producto")
+
+        return f"Se actualizó el producto '{nombre_nuevo}' ({'; '.join(cambios)})."
+
     def _save_edited_product(self, product_id: int, producto: dict[str, Any], datos) -> None:
         imagen = guardar_imagen_local(datos[0], datos[4])
         if self.modelo_menu.actualizar_producto(product_id, *datos[:4]):
+            detalle = self._detalle_cambio_producto(producto, datos[:4])
+            self._registrar_auditoria("ACTUALIZAR", "productos", detalle)
             self.cargar_menu()
             return
         producto.update({"name": datos[0], "description": datos[1], "price": datos[2], "category_id": datos[3], "category": self._categoria_nombre(datos[3]), "image": imagen})
@@ -88,6 +120,7 @@ class ControladorAdmin:
             return
         disponible = not bool(producto.get("available", False))
         if self.modelo_menu.cambiar_disponibilidad(product_id, disponible):
+            self._registrar_auditoria("ACTUALIZAR", "productos", f"Se cambió disponibilidad del producto ID {product_id} a {'disponible' if disponible else 'no disponible'}.")
             self.cargar_menu()
             return
         producto["available"] = disponible
@@ -100,6 +133,7 @@ class ControladorAdmin:
         if not messagebox.askyesno("Eliminar plato", f"Confirma retirar {producto.get('name', 'este plato')}?", parent=self.vista):
             return
         if self.modelo_menu.eliminar_producto(product_id):
+            self._registrar_auditoria("ELIMINAR", "productos", f"Se eliminó el producto ID {product_id}: '{producto.get('name', 'desconocido')}'.")
             self.cargar_menu()
             return
         self._all_productos = [item for item in self._all_productos if int(item.get("id", -1)) != product_id]
@@ -203,6 +237,7 @@ class ControladorAdmin:
 
         created = self.modelo.crear_empleado(nombre.strip(), rol)
         if created:
+            self._registrar_auditoria("INSERTAR", "usuarios", f"Se creó el usuario/empleado '{nombre.strip()}' con rol {rol}.")
             self.cargar_empleados()
             return
 
@@ -221,6 +256,7 @@ class ControladorAdmin:
     def _save_new_employee(self, datos) -> None:
         nombre, rol, username, password = datos
         if self.modelo.crear_empleado(nombre, rol, username, password):
+            self._registrar_auditoria("INSERTAR", "usuarios", f"Se creó el usuario/empleado '{nombre}' con rol {rol}.")
             self.cargar_empleados()
             return
         new_id = max([int(emp.get("id", 0)) for emp in self._all_empleados] + [0]) + 1
@@ -268,6 +304,7 @@ class ControladorAdmin:
 
         updated = self.modelo.actualizar_empleado(emp_id, nuevo_nombre.strip(), nuevo_rol)
         if updated:
+            self._registrar_auditoria("ACTUALIZAR", "usuarios", f"Se actualizó el empleado ID {emp_id}: '{nuevo_nombre.strip()}' con rol {nuevo_rol}.")
             self.cargar_empleados()
             return
 
@@ -279,6 +316,7 @@ class ControladorAdmin:
     def _save_edited_employee(self, emp_id: int, empleado: dict[str, Any], datos) -> None:
         nuevo_nombre, nuevo_rol, username, password = datos
         if self.modelo.actualizar_empleado(emp_id, nuevo_nombre, nuevo_rol, username, password):
+            self._registrar_auditoria("ACTUALIZAR", "usuarios", f"Se actualizó el empleado ID {emp_id}: '{nuevo_nombre}' con rol {nuevo_rol}.")
             self.cargar_empleados()
             return
         empleado["name"] = nuevo_nombre
@@ -303,11 +341,20 @@ class ControladorAdmin:
 
         deleted = self.modelo.eliminar_empleado(emp_id)
         if deleted:
+            self._registrar_auditoria("ELIMINAR", "usuarios", f"Se eliminó el empleado ID {emp_id}: '{empleado.get('name', 'desconocido')}'.")
             self.cargar_empleados()
             return
 
         self._all_empleados = [emp for emp in self._all_empleados if int(emp.get("id", -1)) != int(emp_id)]
         self._render_filtrado_actual()
+
+    def _registrar_auditoria(self, accion: str, tabla_afectada: str, detalles: str) -> None:
+        if self.id_usuario in (None, 0):
+            return
+        try:
+            self.auditoria_model.registrar_accion(self.id_usuario, accion, tabla_afectada, detalles)
+        except Exception:
+            pass
 
     def _render_filtrado_actual(self) -> None:
         query = (self.vista.get_search_query() if hasattr(self.vista, "get_search_query") else "") or ""
