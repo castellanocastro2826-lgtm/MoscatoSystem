@@ -11,6 +11,10 @@ from src.models.pedidos.modelo_analisis import AnalisisModel
 from src.views.pedidos.vista_analisis import AnalisisView
 from src.controllers.pedidos.controlador_analisis import AnalisisController
 
+from src.models.pedidos.modelo_registro_pedidos import RegistroPedidosModel
+from src.views.pedidos.vista_registro_pedidos import RegistroPedidosView
+from src.controllers.pedidos.controlador_registro_pedidos import RegistroPedidosController
+
 class UnifiedDashboardWindow(ctk.CTkToplevel):
     """Vista del panel unificado de administracion (solo UI y eventos)."""
 
@@ -109,8 +113,9 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
 
         self.nav_buttons = {}
         nav_items = [
-            ("orders", "Pedidos", False, self._show_analisis),
-            ("kitchen", "Auditoria", False, self._show_auditoria),
+            ("registro_pedidos", "Registro de Pedidos", False, self._show_registro_pedidos),
+            ("orders", "Análisis de Producto", False, self._show_analisis),
+            ("kitchen", "Auditoría de Sistema", False, self._show_auditoria),
             ("categories", "Gestion de Menu", True, self._show_menu),
             ("users", "Gestion de Usuarios", False, self._show_users),
         ]
@@ -187,10 +192,30 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         self._replace_main_panel()
         self._build_auditoria_panel()
 
+    def _show_registro_pedidos(self) -> None:
+        self._activate_nav("registro_pedidos")
+        self._replace_main_panel()
+        self._build_registro_pedidos_panel()
+
     def _show_analisis(self) -> None:
         self._activate_nav("orders")
         self._replace_main_panel()
         self._build_analisis_panel()
+
+    def _build_registro_pedidos_panel(self):
+        self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
+        self.main_panel.grid(row=0, column=1, sticky="nsew")
+        self.main_panel.grid_columnconfigure(0, weight=1)
+        self.main_panel.grid_rowconfigure(0, weight=1)
+
+        panel = ctk.CTkFrame(self.main_panel, fg_color="transparent")
+        panel.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(0, weight=1)
+
+        vista = RegistroPedidosView(panel)
+        modelo = RegistroPedidosModel()
+        RegistroPedidosController(modelo, vista)
 
     def _build_analisis_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
@@ -463,7 +488,8 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
             ctk.CTkLabel(info, text=str(producto.get("name", "-")), font=(self.FONT, 12, "bold"), text_color=self.COLORS["text_primary"], anchor="w").grid(row=0, column=0, sticky="w")
             ctk.CTkLabel(info, text=str(producto.get("description", ""))[:58], font=(self.FONT, 10), text_color=self.COLORS["neutral"], anchor="w").grid(row=1, column=0, sticky="ew")
             ctk.CTkLabel(row, text=str(producto.get("category", "Sin categoria")), fg_color=self.COLORS["chip_bg"], text_color=self.COLORS["chip_fg"], corner_radius=12, padx=8, pady=3, font=(self.FONT, 10, "bold")).grid(row=0, column=1, sticky="w", padx=10)
-            ctk.CTkLabel(row, text=f"${float(producto.get('price', 0)):,.2f}", font=(self.FONT, 11, "bold"), text_color=self.COLORS["text_primary"], anchor="w").grid(row=0, column=2, sticky="w", padx=10)
+            price_str = f"${int(float(producto.get('price', 0))):,}".replace(',', '.')
+            ctk.CTkLabel(row, text=price_str, font=(self.FONT, 11, "bold"), text_color=self.COLORS["text_primary"], anchor="w").grid(row=0, column=2, sticky="w", padx=10)
             disponible = bool(producto.get("available", False))
             ctk.CTkLabel(row, text="● Disponible" if disponible else "● Agotado", font=(self.FONT, 10, "bold"), text_color=self.COLORS["success"] if disponible else self.COLORS["accent_soft"], anchor="w").grid(row=0, column=3, sticky="w", padx=10)
             actions = ctk.CTkFrame(row, fg_color="transparent")
@@ -702,28 +728,30 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
 
             edit_btn = ctk.CTkButton(
                 actions,
-                text="✏️",
-                width=36,
-                height=30,
-                corner_radius=8,
+                text="Editar",
+                width=75,
+                height=28,
+                corner_radius=6,
                 fg_color=self.COLORS["chip_bg"],
                 hover_color=self.COLORS["edit_hover"],
                 text_color=self.COLORS["text_primary"],
-                font=(self.FONT, 14),
+                border_width=1,
+                border_color=self.COLORS["panel_border"],
+                font=(self.FONT, 11, "bold"),
                 command=lambda eid=emp_id: self._on_edit_clicked(eid),
             )
             edit_btn.grid(row=0, column=0, padx=(0, 6))
 
             delete_btn = ctk.CTkButton(
                 actions,
-                text="🗑️",
-                width=36,
-                height=30,
-                corner_radius=8,
+                text="Eliminar",
+                width=75,
+                height=28,
+                corner_radius=6,
                 fg_color=self.COLORS["primary"],
                 hover_color=self.COLORS["accent_hover"],
                 text_color=self.COLORS["secondary"],
-                font=(self.FONT, 14),
+                font=(self.FONT, 11, "bold"),
                 command=lambda eid=emp_id: self._on_delete_clicked(eid),
             )
             delete_btn.grid(row=0, column=1)
