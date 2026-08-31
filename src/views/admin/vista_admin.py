@@ -7,6 +7,9 @@ from src.controllers.auditoria.auditoria_controller import AuditoriaController
 from src.models.auditoria.auditoria_model import AuditoriaModel
 from src.views.auditoria.auditoria_view import AuditoriaView
 
+from src.models.pedidos.modelo_analisis import AnalisisModel
+from src.views.pedidos.vista_analisis import AnalisisView
+from src.controllers.pedidos.controlador_analisis import AnalisisController
 
 class UnifiedDashboardWindow(ctk.CTkToplevel):
     """Vista del panel unificado de administracion (solo UI y eventos)."""
@@ -106,7 +109,7 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
 
         self.nav_buttons = {}
         nav_items = [
-            ("orders", "Pedidos", False, lambda: self._show_placeholder("orders")),
+            ("orders", "Pedidos", False, self._show_analisis),
             ("kitchen", "Auditoria", False, self._show_auditoria),
             ("categories", "Gestion de Menu", True, self._show_menu),
             ("users", "Gestion de Usuarios", False, self._show_users),
@@ -184,8 +187,25 @@ class UnifiedDashboardWindow(ctk.CTkToplevel):
         self._replace_main_panel()
         self._build_auditoria_panel()
 
-    def _show_placeholder(self, key: str) -> None:
-        self._activate_nav(key)
+    def _show_analisis(self) -> None:
+        self._activate_nav("orders")
+        self._replace_main_panel()
+        self._build_analisis_panel()
+
+    def _build_analisis_panel(self):
+        self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
+        self.main_panel.grid(row=0, column=1, sticky="nsew")
+        self.main_panel.grid_columnconfigure(0, weight=1)
+        self.main_panel.grid_rowconfigure(0, weight=1)
+
+        panel = ctk.CTkFrame(self.main_panel, fg_color="transparent")
+        panel.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(0, weight=1)
+
+        vista_analisis = AnalisisView(panel)
+        modelo_analisis = AnalisisModel()
+        AnalisisController(modelo_analisis, vista_analisis)
 
     def _build_auditoria_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
