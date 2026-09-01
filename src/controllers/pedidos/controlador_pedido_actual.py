@@ -103,6 +103,13 @@ class ControladorPedidoActual:
         if self._on_exit is not None:
             self._on_exit()
 
+    
+    def establecer_id_pedido_en_edicion(self, id_pedido: int | None) -> None:
+        self._id_pedido_en_edicion = id_pedido
+
+    def obtener_id_pedido_en_edicion(self) -> int | None:
+        return getattr(self, "_id_pedido_en_edicion", None)
+
     def refrescar(self) -> None:
         items = self.modelo.obtener_items()
         self.vista.redibujar(items)
@@ -116,6 +123,7 @@ class ControladorPedidoActual:
 
     def limpiar(self) -> None:
         self.modelo.limpiar()
+        self._id_pedido_en_edicion = None
         self.refrescar()
 
     def _buscar_item(self, id_item: str) -> dict[str, object] | None:

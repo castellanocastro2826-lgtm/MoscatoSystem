@@ -218,7 +218,7 @@ class VistaPedidoActual:
         ).grid(row=0, column=0, sticky="w")
         ctk.CTkLabel(
             top,
-            text=f"${precio * cantidad:.2f}",
+            text=f"${(precio * cantidad):,.0f}".replace(",", "."),
             text_color="#E8A27E",
             font=("Segoe UI", 12, "bold"),
         ).grid(row=0, column=1, sticky="e")
@@ -275,11 +275,11 @@ class VistaPedidoActual:
 
     def actualizar_totales(self, totales: dict[str, float]) -> None:
         if self._subtotal_value is not None:
-            self._subtotal_value.configure(text=f"${totales.get('subtotal', 0.0):.2f}")
+            self._subtotal_value.configure(text=f"${totales.get('subtotal', 0.0):,.0f}".replace(",", "."))
         if self._impuesto_value is not None:
-            self._impuesto_value.configure(text=f"${totales.get('impuesto', 0.0):.2f}")
+            self._impuesto_value.configure(text=f"${totales.get('impuesto', 0.0):,.0f}".replace(",", "."))
         if self._total_value is not None:
-            self._total_value.configure(text=f"${totales.get('total', 0.0):.2f}")
+            self._total_value.configure(text=f"${totales.get('total', 0.0):,.0f}".replace(",", "."))
 
     def actualizar_ticket(self, numero_ticket: int) -> None:
         self.ticket_numero = numero_ticket
@@ -415,7 +415,7 @@ class VistaPedidoActual:
         ).grid(row=row, column=0, sticky="w", pady=2)
         valor = ctk.CTkLabel(
             parent,
-            text="$0.00",
+            text="$0",
             text_color="#F4EBD0" if total else "#E8A27E",
             font=("Segoe UI", 12 if total else 11, "bold"),
         )

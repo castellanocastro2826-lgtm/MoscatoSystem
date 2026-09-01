@@ -1,5 +1,6 @@
 import os
 import tkinter as tk
+import threading
 from typing import Callable
 
 try:
@@ -8,15 +9,15 @@ except ImportError:  # pragma: no cover - fallback fuera de Windows
     winsound = None
 
 import customtkinter as ctk
-import mysql.connector
-from mysql.connector import Error
 from PIL import Image, ImageDraw, ImageTk
 
 from src.core.event_bus import event_bus
 from src.controllers.mesas.controlador_mesas import MesasController
 from src.controllers.pedidos.controlador_pedido_actual import ControladorPedidoActual
+from src.controllers.pedidos.controlador_mesero import ControladorMesero
 from src.models.mesas.modelo_mesas import MesasModel
 from src.models.pedidos.modelo_pedido_actual import ModeloPedidoActual
+from src.models.pedidos.modelo_mesero import ModeloMesero
 from src.models.productos.imagenes_menu import buscar_imagen_local
 from src.views.mesas.vista_mesas import MesasView
 from src.views.pedidos.vista_pedido_actual import VistaPedidoActual
@@ -36,6 +37,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self.mesa_actual = mesa_actual
         self._icon_refs: list[ImageTk.PhotoImage] = []
         self._product_cards: list[ctk.CTkFrame] = []
+        self._product_card_pool: list[ctk.CTkFrame] = []
         self._catalog_layout_pending = False
         self._catalog_canvas: tk.Canvas | None = None
         self._catalog_content: ctk.CTkFrame | None = None
@@ -53,6 +55,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._pedido_vacio_label: ctk.CTkLabel | None = None
         self._categoria_botones: dict[str, ctk.CTkButton] = {}
         self._categoria_actual = "Comida China"
+        
+        self.modelo_mesero = ModeloMesero()
+        self.controlador_mesero = ControladorMesero(self.modelo_mesero)
+        
         self._pedido_actual_model: ModeloPedidoActual | None = None
         self._pedido_actual_view: VistaPedidoActual | None = None
         self._pedido_actual_controller: ControladorPedidoActual | None = None
@@ -61,8 +67,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._mesas_controller: MesasController | None = None
         self._mesa_seleccionada_id: int | None = None
         self._mesas_por_id: dict[int, dict[str, object]] = {}
+        
         self._ordenes_pendientes: list[dict[str, object]] = []
         self._ordenes_auditoria: list[dict[str, object]] = []
+        
         self._notificacion_label: ctk.CTkLabel | None = None
         self._notificacion_after_id: str | None = None
         self._pendientes_window: ctk.CTkToplevel | None = None
@@ -71,25 +79,20 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._ultimo_error_bd: str | None = None
         self._pedidos_estado_notificado: dict[int, str] = {}
         self._tickets_por_pedido: dict[int, int] = {}
-        self._sync_pedidos_after_id: str | None = None
+        
         self._evento_pedido_listo = self._on_pedido_listo_event
         self._evento_mesa_seleccionada = self._on_mesa_seleccionada_event
+        self._evento_pedidos_actualizados = self._on_pedidos_actualizados
+        
         event_bus.subscribe("pedido.listo", self._evento_pedido_listo)
         event_bus.subscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
-        self._db_config = {
-            "host": os.getenv("DB_HOST", "127.0.0.1"),
-            "port": int(os.getenv("DB_PORT", "3306")),
-            "user": os.getenv("DB_USER", "root"),
-            "password": os.getenv("DB_PASSWORD", ""),
-            "database": os.getenv("DB_NAME", "moscato_db"),
-            "autocommit": False,
-        }
+        event_bus.subscribe("pedidos.pendientes_actualizados", self._evento_pedidos_actualizados)
 
         self._productos_por_categoria: dict[str, list[dict[str, object]]] = {}
         self._cargar_productos_catalogo()
 
         self._build_layout()
-        self._programar_sincronizacion_pedidos()
+        self.controlador_mesero.start_polling(5)
 
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -373,32 +376,48 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._categoria_actual = categoria
         self._actualizar_estilo_categorias()
 
-        # Limpia cualquier tarjeta previa del contenedor principal del catalogo.
+        # Limpiar catálogo (sin widget pooling para evitar cruce de estados)
         for widget in self._catalog_content.winfo_children():
             widget.destroy()
         self._product_cards.clear()
 
+        productos = self._productos_por_categoria.get(categoria, [])
+
         import re
-        for producto in self._productos_por_categoria.get(categoria, []):
-            nombre_limpio = re.sub(r'(?i)\bfamiliares?\b', '', str(producto["nombre"]))
+        for producto in productos:
+            nombre_limpio = re.sub(r'(?i)familiares?', '', str(producto["nombre"]))
             nombre_limpio = ' '.join(nombre_limpio.split())
+            precio_formateado = f"${producto['precio']:,.0f}".replace(',', '.')
+            
             card = self._product_card(
                 self._catalog_content,
                 nombre_limpio,
-                f"${producto['precio']:,.0f}",
+                precio_formateado,
                 str(producto.get("descripcion", "")),
-                buscar_imagen_local(str(producto.get("nombre", "")))
+                None
             )
+            card.image_label.configure(text="Sin foto")
+            
+            # Hover effects
+            def on_enter(e, c=card):
+                c.configure(border_width=2, border_color="#DCCAA8")
+            def on_leave(e, c=card):
+                c.configure(border_width=0)
+                
+            card.bind("<Enter>", on_enter)
+            card.bind("<Leave>", on_leave)
+            
             self._enlazar_click_producto(card, producto)
             self._product_cards.append(card)
 
         if not self._product_cards:
-            ctk.CTkLabel(
+            lbl = ctk.CTkLabel(
                 self._catalog_content,
                 text="Sin productos en esta categoria por ahora",
                 text_color="#DCCAA8",
                 font=("Segoe UI", 13, "bold"),
-            ).grid(row=0, column=0, padx=12, pady=12, sticky="w")
+            )
+            lbl.grid(row=0, column=0, padx=12, pady=12, sticky="w")
 
         self._layout_catalog_cards()
 
@@ -407,86 +426,24 @@ class MeseroDesignWindow(ctk.CTkFrame):
             boton.configure(fg_color="#8C1A11" if nombre == self._categoria_actual else "#3A2B2A")
 
     def _cargar_productos_catalogo(self) -> None:
-        # Mapeo de categorías en BD -> Categorías en UI
-        categorias = {
-            "moscato chino - compartir": "Combos",
-            "moscato chino - personal": "Comida China",
-            "moscato broaster": "Combos",
-            "promociones": "Promos",
-            "comida": "Comida China",
-            "bebida": "Bebidas",
-            "bebidas": "Bebidas",
-            "postre": "Comida China",
-        }
-        connection = self._connect_db()
-        if connection is None:
-            self._productos_por_categoria = {}
-            return
-
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                try:
-                    cursor.execute(
-                        """
-                        SELECT pr.id_producto, pr.nombre, pr.precio,
-                                ca.nombre AS categoria_db, pr.descripcion
-                        FROM productos pr
-                        INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
-                        WHERE ca.activo = 1 AND pr.activo = 1 AND pr.disponible = 1
-                        ORDER BY ca.id_categoria, pr.id_producto
-                        """
-                    )
-                except Error:
-                    cursor.execute(
-                        """
-                        SELECT pr.id_producto, pr.nombre, pr.precio,
-                                ca.nombre AS categoria_db, pr.descripcion
-                        FROM productos pr
-                        INNER JOIN categorias ca ON ca.id_categoria = pr.id_categoria
-                        WHERE ca.activo = 1 AND pr.activo = 1 AND pr.disponible = 1
-                        ORDER BY ca.id_categoria, pr.id_producto
-                        """
-                    )
-                productos_por_categoria: dict[str, list[dict[str, object]]] = {
-                    "Comida China": [],
-                    "Combos": [],
-                    "Promos": [],
-                    "Bebidas": [],
-                }
-                
-                filas = cursor.fetchall()
-                print("DEBUG - Productos obtenidos de BD:", len(filas))
-                
-                for producto in filas:
-                    print("DEBUG - Producto:", producto["nombre"], "Categoria DB:", producto["categoria_db"])
-                    # Obtenemos la categoria mapeada, si no existe la mandamos por defecto a "Comida China"
-                    categoria_db = str(producto["categoria_db"]).strip().casefold()
-                    boton_categoria = categorias.get(categoria_db, "Comida China")
-                    
-                    producto["categoria_db"] = str(producto["categoria_db"])
-                    producto["precio"] = float(producto["precio"])
-                    
-                    # Verificamos que la categoria del boton exista en el diccionario
-                    if boton_categoria not in productos_por_categoria:
-                        productos_por_categoria[boton_categoria] = []
-                        
-                    productos_por_categoria[boton_categoria].append(producto)
-                    
-                self._productos_por_categoria = productos_por_categoria
-        except Exception as exc:
-            print("DEBUG DB ERROR:", exc)
-            self._ultimo_error_bd = str(exc)
-            self._productos_por_categoria = {}
-        finally:
-            connection.close()
+        self._productos_por_categoria = self.controlador_mesero.cargar_catalogo()
 
     def _enlazar_click_producto(self, card: ctk.CTkFrame, producto: dict[str, float | str]) -> None:
         def _on_click(_event: tk.Event | None = None) -> None:
+            # Agregamos feedback visual al hacer click
+            card.configure(fg_color="#3A2A2A")
+            self.after(100, lambda: card.configure(fg_color="#1E1E1E"))
             self.agregar_producto_a_ticket(producto)
 
         card.configure(cursor="hand2")
-        for widget in (card, *card.winfo_children()):
+        
+        # Funcion recursiva para atar todos los sub-widgets
+        def bind_recursive(widget):
             widget.bind("<Button-1>", _on_click)
+            for child in widget.winfo_children():
+                bind_recursive(child)
+                
+        bind_recursive(card)
 
     def _update_catalog_scrollregion(self, _event: tk.Event | None = None) -> None:
         if self._catalog_canvas is not None:
@@ -572,7 +529,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
         descripcion_label.pack(fill="both", expand=True)
         
         card.descripcion_label = descripcion_label
-
+        card.title_label = title_label
+        card.price_label = price_label
+        card.image_label = image_label
         return card
 
     def _build_order_panel(self) -> ctk.CTkFrame:
@@ -595,6 +554,13 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._pedido_vacio_label = self._pedido_actual_view._empty_label
         self._ticket_label = self._pedido_actual_view._ticket_label
         return self._pedido_actual_view.frame
+
+    def _reproducir_campanita(self) -> None:
+        try:
+            import winsound
+            winsound.PlaySound("SystemAsterisk", winsound.SND_ALIAS | winsound.SND_ASYNC)
+        except Exception:
+            pass
 
     def _actualizar_label_ticket(self) -> None:
         if self._ticket_label is not None:
@@ -653,6 +619,12 @@ class MeseroDesignWindow(ctk.CTkFrame):
             "id_pedido": 0,
             "pagado": pagado_bool,
         }
+        if self._pedido_actual_controller:
+            id_edicion = self._pedido_actual_controller.obtener_id_pedido_en_edicion()
+            if id_edicion:
+                orden["id_pedido_edicion"] = id_edicion
+        if "id_pedido_edicion" in orden:
+            self._ordenes_pendientes = [o for o in self._ordenes_pendientes if int(o.get("id_pedido") or 0) != orden["id_pedido_edicion"]]
         self._ordenes_pendientes.append(orden)
         id_pedido = self._guardar_orden_en_bd(orden)
         if id_pedido is None:
@@ -685,87 +657,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
             self._pedido_actual_controller.limpiar()
         return True
 
-    def _connect_db(self):
-        try:
-            return mysql.connector.connect(**self._db_config)
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            return None
-
     def _guardar_orden_en_bd(self, orden: dict[str, object]) -> int | None:
-        self._ultimo_error_bd = None
-        connection = self._connect_db()
-        if connection is None:
-            return None
-
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                id_usuario = self._resolver_id_usuario(cursor)
-                id_usuario = id_usuario or 1
-                if id_usuario is None:
-                    self._ultimo_error_bd = "Sin usuario activo para registrar pedido"
-                    connection.rollback()
-                    return None
-
-                id_mesa = self._resolver_id_mesa(cursor, str(orden.get("mesa", "")))
-                tipo_pedido = "Mesa" if id_mesa is not None else "Para llevar"
-
-                cursor.execute(
-                    """
-                    INSERT INTO pedidos (id_mesa, id_usuario, tipo_pedido, estado_pedido, pagado)
-                    VALUES (%s, %s, %s, 'En cocina', %s)
-                    """,
-                    (id_mesa, id_usuario, tipo_pedido, 1 if orden.get("pagado") else 0),
-                )
-                id_pedido = int(cursor.lastrowid)
-                self._asegurar_tabla_tickets(cursor)
-                cursor.execute(
-                    """
-                    INSERT INTO pedidos_ticket_map (id_pedido, ticket_numero)
-                    VALUES (%s, %s)
-                    ON DUPLICATE KEY UPDATE ticket_numero = VALUES(ticket_numero)
-                    """,
-                    (id_pedido, int(orden.get("ticket") or id_pedido)),
-                )
-
-                for item in list(orden.get("items", [])):
-                    nombre = str(item.get("nombre", "")).strip()
-                    precio = float(item.get("precio", 0.0) or 0.0)
-                    cantidad = max(1, int(item.get("cantidad") or 1))
-                    notas = str(item.get("notas") or "").strip() or None
-                    categoria_db = str(item.get("categoria_db", "Comida"))
-                    if not nombre:
-                        continue
-
-                    id_producto = self._resolver_o_crear_producto(cursor, nombre, precio, categoria_db)
-                    subtotal = round(precio * cantidad, 2)
-                    cursor.execute(
-                        """
-                        INSERT INTO detalle_pedido (
-                            id_pedido,
-                            id_producto,
-                            cantidad,
-                            descripcion_preparacion,
-                            subtotal,
-                            estado_item
-                        )
-                        VALUES (%s, %s, %s, %s, %s, 'Pendiente')
-                        """,
-                        (id_pedido, id_producto, cantidad, notas, subtotal),
-                    )
-                    item["id_detalle"] = int(cursor.lastrowid)
-                    item["id_producto"] = int(id_producto)
-                    item["cantidad"] = cantidad
-                    item["notas"] = notas or ""
-
-                connection.commit()
-                return int(id_pedido)
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            connection.rollback()
-            return None
-        finally:
-            connection.close()
+        return self.controlador_mesero.guardar_orden(orden, self.usuario)
 
     def _on_pedido_listo_event(self, evento: dict[str, object]) -> None:
         pedido_id = int(evento.get("id_pedido") or 0)
@@ -821,7 +714,6 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if self._mesas_view is None:
             return
 
-        self._asegurar_mesas_base_1_a_10()
         self._mesas_model = MesasModel()
         self._mesas_controller = MesasController(self._mesas_model, self._mesas_view)
         self._mesas_view.configurar_accion_click(self._on_click_mesa_plano)
@@ -854,28 +746,6 @@ class MeseroDesignWindow(ctk.CTkFrame):
                     "numero_mesa": mesa_inicial.get("numero_mesa"),
                 }
             )
-
-    def _asegurar_mesas_base_1_a_10(self) -> None:
-        """Garantiza existencia de mesas 1..10 para mantener UX historica del mesero."""
-        connection = self._connect_db()
-        if connection is None:
-            return
-
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                cursor.execute("SELECT numero_mesa FROM mesas WHERE numero_mesa BETWEEN 1 AND 10")
-                existentes = {int(row["numero_mesa"]) for row in cursor.fetchall()}
-                faltantes = [numero for numero in range(1, 11) if numero not in existentes]
-                for numero in faltantes:
-                    cursor.execute(
-                        "INSERT INTO mesas (numero_mesa, estado, activo) VALUES (%s, 'Libre', 1)",
-                        (numero,),
-                    )
-            connection.commit()
-        except Error:
-            connection.rollback()
-        finally:
-            connection.close()
 
     def _on_click_mesa_plano(self, id_mesa: int) -> None:
         self._mesa_seleccionada_id = int(id_mesa)
@@ -924,124 +794,6 @@ class MeseroDesignWindow(ctk.CTkFrame):
             if self._pedido_actual_model and self._pedido_actual_model.obtener_items():
                 self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
 
-    def _resolver_id_usuario(self, cursor) -> int | None:
-        cursor.execute(
-            """
-            SELECT id_usuario
-            FROM usuarios u
-            INNER JOIN empleados e
-                ON e.id_empleado = u.id_empleado
-            WHERE TRIM(CONCAT(e.nombres, ' ', e.apellidos)) = %s
-              AND u.rol IN ('Mesonero', 'Mesero')
-              AND u.activo = 1
-              AND e.activo = 1
-            ORDER BY id_usuario ASC
-            LIMIT 1
-            """,
-            (self.usuario,),
-        )
-        row = cursor.fetchone()
-        if row:
-            return int(row["id_usuario"])
-
-        cursor.execute(
-            """
-            SELECT id_usuario
-            FROM usuarios
-            WHERE username = %s AND rol IN ('Mesonero', 'Mesero') AND activo = 1
-            ORDER BY id_usuario ASC
-            LIMIT 1
-            """,
-            (self.usuario,),
-        )
-        username_match = cursor.fetchone()
-        if username_match:
-            return int(username_match["id_usuario"])
-
-        cursor.execute(
-            """
-            SELECT id_usuario
-            FROM usuarios
-            WHERE rol IN ('Mesonero', 'Mesero') AND activo = 1
-            ORDER BY id_usuario ASC
-            LIMIT 1
-            """
-        )
-        fallback = cursor.fetchone()
-        if fallback:
-            return int(fallback["id_usuario"])
-
-        cursor.execute(
-            """
-            SELECT id_usuario
-            FROM usuarios
-            WHERE activo = 1
-            ORDER BY id_usuario ASC
-            LIMIT 1
-            """
-        )
-        any_user = cursor.fetchone()
-        if any_user:
-            return int(any_user["id_usuario"])
-        return None
-
-    def _resolver_id_mesa(self, cursor, mesa_texto: str) -> int | None:
-        numero = self._extraer_numero_mesa(mesa_texto)
-        if numero is None:
-            return None
-
-        cursor.execute("SELECT id_mesa FROM mesas WHERE numero_mesa = %s LIMIT 1", (numero,))
-        row = cursor.fetchone()
-        if row:
-            return int(row["id_mesa"])
-
-        cursor.execute(
-            "INSERT INTO mesas (numero_mesa, estado, activo) VALUES (%s, 'Libre', 1)",
-            (numero,),
-        )
-        return int(cursor.lastrowid)
-
-    @staticmethod
-    def _extraer_numero_mesa(mesa_texto: str) -> int | None:
-        digitos = "".join(ch for ch in str(mesa_texto) if ch.isdigit())
-        if not digitos:
-            return None
-        try:
-            return int(digitos)
-        except ValueError:
-            return None
-
-    @staticmethod
-    def _resolver_o_crear_producto(cursor, nombre: str, precio: float, categoria_db: str) -> int:
-        cursor.execute(
-            "SELECT id_producto FROM productos WHERE nombre = %s LIMIT 1",
-            (nombre,),
-        )
-        row = cursor.fetchone()
-        if row:
-            return int(row["id_producto"])
-
-        nombre_categoria = categoria_db if categoria_db in {"Comida", "Bebida", "Postre"} else "Comida"
-        cursor.execute(
-            "SELECT id_categoria FROM categorias WHERE nombre = %s LIMIT 1",
-            (nombre_categoria,),
-        )
-        cat_row = cursor.fetchone()
-        if cat_row:
-            id_categoria = int(cat_row["id_categoria"])
-        else:
-            cursor.execute("INSERT INTO categorias (nombre) VALUES (%s)", (nombre_categoria,))
-            id_categoria = int(cursor.lastrowid)
-
-        cursor.execute(
-            """
-            INSERT INTO productos (nombre, precio, id_categoria)
-            VALUES (%s, %s, %s)
-            """,
-            (nombre, precio, id_categoria),
-        )
-        return int(cursor.lastrowid)
-
     def _limpiar_panel_pedido_actual(self) -> None:
         if self._pedido_actual_controller is not None:
             self._pedido_actual_controller.limpiar()
@@ -1089,10 +841,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
             font=("Segoe UI", 24, "bold"),
         ).grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 8))
 
-        lista = ctk.CTkFrame(win, fg_color="#1E1415", corner_radius=10)
+        lista = ctk.CTkScrollableFrame(win, fg_color="#1E1415", corner_radius=10, width=280)
         lista.grid(row=1, column=0, sticky="nsw", padx=(16, 8), pady=(0, 14))
-        lista.grid_propagate(False)
-        lista.configure(width=300)
+        #lista.grid_propagate(False)  # Not needed for scrollable frame
 
         detalle = ctk.CTkFrame(win, fg_color="#1B1C1F", corner_radius=10)
         detalle.grid(row=1, column=1, sticky="nsew", padx=(8, 16), pady=(0, 14))
@@ -1103,119 +854,37 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._refrescar_ventana_pendientes()
 
     def _cargar_ordenes_pendientes_desde_bd(self) -> None:
-        connection = self._connect_db()
-        if connection is None:
-            return
+        if self.controlador_mesero and self.controlador_mesero.modelo:
+            ordenes = self.controlador_mesero.modelo.obtener_ordenes_pendientes()
+            grouped = {}
+            for row in ordenes:
+                t = row.get("id_pedido")
+                if not t: continue
+                if t not in grouped:
+                    grouped[t] = {
+                        "ticket": t,
+                        "mesa": row.get("mesa", "Mesa X"),
+                        "estado": row.get("estado_pedido", ""),
+                        "pagado": bool(row.get("pagado")),
+                        "id_pedido": row.get("id_pedido"),
+                        "items": []
+                    }
+                grouped[t]["items"].append({
+                    "id_detalle": row.get("id_detalle"),
+                    "id_producto": row.get("id_producto"),
+                    "nombre": row.get("nombre"),
+                    "precio": row.get("precio"),
+                    "cantidad": row.get("cantidad"),
+                    "notas": row.get("descripcion_preparacion", ""),
+                    "estado_item": row.get("estado_item", "")
+                })
+            
+            self._on_pedidos_actualizados({"ordenes": list(grouped.values())})
 
-        sql = """
-            SELECT
-                p.id_pedido,
-                p.estado_pedido,
-                p.pagado,
-                p.metodo_pago,
-                ptm.ticket_numero,
-                CASE
-                    WHEN p.id_mesa IS NULL OR p.tipo_pedido = 'Para llevar' THEN 'Para llevar'
-                    ELSE CONCAT('Mesa ', m.numero_mesa)
-                END AS mesa,
-                dp.id_detalle,
-                pr.id_producto,
-                pr.nombre,
-                pr.precio,
-                dp.cantidad,
-                dp.descripcion_preparacion,
-                dp.estado_item
-            FROM pedidos p
-            INNER JOIN detalle_pedido dp
-                ON dp.id_pedido = p.id_pedido
-            INNER JOIN productos pr
-                ON pr.id_producto = dp.id_producto
-            LEFT JOIN mesas m
-                ON m.id_mesa = p.id_mesa
-            LEFT JOIN pedidos_ticket_map ptm
-                ON ptm.id_pedido = p.id_pedido
-            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido')
-            ORDER BY p.id_pedido DESC, dp.id_detalle ASC
-        """
-
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                cursor.execute(sql)
-                filas = cursor.fetchall()
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            return
-        finally:
-            connection.close()
-
-        ticket_por_pedido = {
-            int(orden.get("id_pedido") or 0): int(orden.get("ticket") or 0)
-            for orden in self._ordenes_pendientes
-            if int(orden.get("id_pedido") or 0) > 0
-        }
-        ticket_por_pedido.update({k: v for k, v in self._tickets_por_pedido.items() if k > 0 and v > 0})
-
-        agrupadas: dict[int, dict[str, object]] = {}
-        for fila in filas:
-            id_pedido = int(fila.get("id_pedido") or 0)
-            if id_pedido <= 0:
-                continue
-
-            orden = agrupadas.get(id_pedido)
-            if orden is None:
-                ticket_bd = int(fila.get("ticket_numero") or 0)
-                estado_pedido_bd = str(fila.get("estado_pedido") or "Enviado a cocina")
-                if estado_pedido_bd in ["En cocina", "Abierto"]:
-                    estado_pedido_bd = "Enviado a cocina"
-                    
-                orden = {
-                    "ticket": ticket_bd or ticket_por_pedido.get(id_pedido, id_pedido),
-                    "mesa": self._normalize_mesa_text(str(fila.get("mesa") or "Para llevar")),
-                    "estado": estado_pedido_bd,
-                    "items": [],
-                    "id_pedido": id_pedido,
-                    "pagado": bool(fila.get("pagado")),
-                    "metodo_pago": str(fila.get("metodo_pago") or ""),
-                }
-                agrupadas[id_pedido] = orden
-            else:
-                estado_pedido_bd = str(fila.get("estado_pedido") or orden["estado"])
-                if estado_pedido_bd in ["En cocina", "Abierto"]:
-                    estado_pedido_bd = "Enviado a cocina"
-                orden["estado"] = estado_pedido_bd
-                
-            estado_item_bd = str(fila.get("estado_item") or "")
-            if estado_item_bd in ["En preparación", "En preparacion"]:
-                orden["estado"] = "En preparación"
-            elif estado_item_bd == "Listo" and orden["estado"] != "Listo":
-                # Si por alguna razon un item esta listo pero el pedido no se actualizo
-                pass
-            elif estado_item_bd == "Servido":
-                orden["estado"] = "Servido"
-
-            orden["items"].append(
-                {
-                    "id_item": str(fila.get("id_producto") or fila.get("nombre") or ""),
-                    "id_detalle": int(fila.get("id_detalle") or 0),
-                    "id_producto": int(fila.get("id_producto") or 0),
-                    "nombre": str(fila.get("nombre") or "Producto"),
-                    "precio": float(fila.get("precio") or 0.0),
-                    "cantidad": max(1, int(fila.get("cantidad") or 1)),
-                    "notas": str(fila.get("descripcion_preparacion") or "").strip(),
-                    "categoria_db": "Comida",
-                }
-            )
-
-        self._ordenes_pendientes = sorted(
-            agrupadas.values(),
-            key=lambda orden: int(orden.get("ticket") or 0),
-            reverse=True,
-        )
-        for orden in self._ordenes_pendientes:
-            id_pedido = int(orden.get("id_pedido") or 0)
-            ticket = int(orden.get("ticket") or 0)
-            if id_pedido > 0 and ticket > 0:
-                self._tickets_por_pedido[id_pedido] = ticket
+    def _on_pedidos_actualizados(self, payload: dict) -> None:
+        self._ordenes_pendientes = payload.get("ordenes", [])
+        if self._pendientes_window is not None and self._pendientes_window.winfo_exists():
+            self._refrescar_ventana_pendientes()
 
     def _refrescar_ventana_pendientes(self, ticket_seleccionado: int | None = None) -> None:
         if (
@@ -1363,7 +1032,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
         total_frame = ctk.CTkFrame(self._pendientes_detail_container, fg_color="#180C0D", corner_radius=8)
         total_frame.pack(fill="x", padx=14, pady=(14, 0))
         ctk.CTkLabel(total_frame, text="Total:", text_color="#F4EBD0", font=("Segoe UI", 16, "bold")).pack(side="left", padx=10, pady=10)
-        ctk.CTkLabel(total_frame, text=f"${total_suma:.2f}", text_color="#4FA64F", font=("Segoe UI", 16, "bold")).pack(side="right", padx=10, pady=10)
+        ctk.CTkLabel(total_frame, text=f"${total_suma:,.0f}".replace(",", "."), text_color="#4FA64F", font=("Segoe UI", 16, "bold")).pack(side="right", padx=10, pady=10)
         
         if es_servido:
             metodo = str(orden_activa.get("metodo_pago") or "Efectivo")
@@ -1379,9 +1048,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
             ctk.CTkButton(
                 acciones,
                 text="Editar en panel",
-                fg_color="#3A2524",
-                hover_color="#503231",
-                text_color="#F4EBD0",
+                fg_color="#3A2524" if es_editable else "#1C1414",
+                hover_color="#503231" if es_editable else "#1C1414",
+                text_color="#F4EBD0" if es_editable else "#555555",
                 font=("Segoe UI", 11, "bold"),
                 state="normal" if es_editable else "disabled",
                 command=lambda t=ticket_seleccionado: self._cargar_pedido_pendiente_en_panel(t),
@@ -1390,9 +1059,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
             ctk.CTkButton(
                 acciones,
                 text="Cancelar pedido",
-                fg_color="#8C1A11",
-                hover_color="#A1241A",
-                text_color="#F4EBD0",
+                fg_color="#8C1A11" if not es_listo else "#2A1B1B",
+                hover_color="#A1241A" if not es_listo else "#2A1B1B",
+                text_color="#F4EBD0" if not es_listo else "#555555",
                 font=("Segoe UI", 11, "bold"),
                 state="disabled" if es_listo else "normal",
                 command=lambda t=ticket_seleccionado: self._cancelar_pedido_pendiente(t),
@@ -1412,6 +1081,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
     def _actualizar_estado_pedido_desde_cocina(self, ticket: int, estado: str) -> None:
         orden = self._buscar_orden(ticket)
         if orden is None:
+            import logging
+            logging.error(f"Error: _buscar_orden({ticket}) retorno None. _ordenes_pendientes={self._ordenes_pendientes}")
             return
 
         orden["estado"] = estado
@@ -1496,7 +1167,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if item_index < 0 or item_index >= len(items):
             return
         item = items[item_index]
-        if not self._eliminar_item_pendiente_bd(int(item.get("id_detalle") or 0)):
+        if not self.controlador_mesero.eliminar_item_pendiente(int(item.get("id_detalle") or 0)):
             self._mostrar_notificacion("No se pudo eliminar el item del pedido", "#6F2C2C")
             return
         items.pop(item_index)
@@ -1510,6 +1181,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
     def _abrir_modal_pago(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
         if orden is None:
+            import logging
+            logging.error(f"Error: _buscar_orden({ticket}) retorno None. _ordenes_pendientes={self._ordenes_pendientes}")
             return
             
         if hasattr(self, "_pago_modal") and self._pago_modal is not None and self._pago_modal.winfo_exists():
@@ -1554,10 +1227,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
         total_frame = ctk.CTkFrame(self._pago_modal, fg_color="#180C0D")
         total_frame.pack(fill="x", padx=20, pady=10)
         ctk.CTkLabel(total_frame, text="TOTAL A PAGAR:", text_color="#F4EBD0", font=("Segoe UI", 18, "bold")).pack(side="left")
-        ctk.CTkLabel(total_frame, text=f"${total_suma:.2f}", text_color="#4FA64F", font=("Segoe UI", 20, "bold")).pack(side="right")
+        ctk.CTkLabel(total_frame, text=f"${total_suma:,.0f}".replace(",", "."), text_color="#4FA64F", font=("Segoe UI", 20, "bold")).pack(side="right")
         
         ctk.CTkLabel(self._pago_modal, text="Método de Pago:", text_color="#F4EBD0", font=("Segoe UI", 14, "bold")).pack(pady=(10, 5))
-        metodo_var = ctk.StringVar(value="Efectivo")
+        self._metodo_var = ctk.StringVar(value="Efectivo")
+        metodo_var = self._metodo_var
         metodos = ctk.CTkSegmentedButton(
             self._pago_modal,
             values=["Efectivo", "Pago Móvil", "Tarjeta"],
@@ -1583,21 +1257,25 @@ class MeseroDesignWindow(ctk.CTkFrame):
         ).pack(fill="x", padx=20, pady=20)
 
     def _cerrar_pedido_listo_y_pagado(self, ticket: int, metodo_pago: str = "") -> None:
+        import logging
+        logging.info(f"Intentando cerrar pedido. Ticket={ticket}, Metodo={metodo_pago}")
         orden = self._buscar_orden(ticket)
         if orden is None:
+            import logging
+            logging.error(f"Error: _buscar_orden({ticket}) retorno None. _ordenes_pendientes={self._ordenes_pendientes}")
             return
         id_pedido = int(orden.get("id_pedido") or 0)
         if id_pedido <= 0:
             return
             
-        connection = self._connect_db()
+        connection = self.controlador_mesero.modelo._connect_db()
         if connection is not None:
             try:
                 cursor = connection.cursor()
                 cursor.execute("UPDATE pedidos SET estado_pedido = 'Servido', pagado = 1, metodo_pago = %s WHERE id_pedido = %s", (metodo_pago, id_pedido))
                 cursor.execute("UPDATE detalle_pedido SET estado_item = 'Servido' WHERE id_pedido = %s", (id_pedido,))
                 connection.commit()
-            except Error as exc:
+            except Exception as exc:
                 self._ultimo_error_bd = str(exc)
                 connection.rollback()
                 self._mostrar_notificacion("Error al cerrar pedido", "#6F2C2C")
@@ -1609,26 +1287,37 @@ class MeseroDesignWindow(ctk.CTkFrame):
         orden["pagado"] = True
         orden["metodo_pago"] = metodo_pago
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cerrado y pagado", "#2F5C36")
-        self._refrescar_ventana_pendientes(ticket)
-        
         if hasattr(self, "_pago_modal") and self._pago_modal is not None and self._pago_modal.winfo_exists():
             self._pago_modal.destroy()
             self._pago_modal = None
             
+        self._refrescar_ventana_pendientes(ticket)
+        
         self._liberar_mesa_de_orden(orden)
 
     def _cancelar_pedido_pendiente(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
         if orden is None:
+            import logging
+            logging.error(f"Error: _buscar_orden({ticket}) retorno None. _ordenes_pendientes={self._ordenes_pendientes}")
             return
         id_pedido = int(orden.get("id_pedido") or 0)
         if id_pedido <= 0:
             return
-        if not self._cancelar_pedido_pendiente_bd(id_pedido):
+        if not self.controlador_mesero.cancelar_pedido_pendiente(id_pedido):
             self._mostrar_notificacion("No se pudo cancelar el pedido", "#6F2C2C")
             return
         self._retirar_orden_pendiente(orden)
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cancelado", "#8C1A11")
+
+
+    @staticmethod
+    def _extraer_numero_mesa(texto: str) -> int | None:
+        import re
+        match = re.search(r'\d+', texto)
+        if match:
+            return int(match.group())
+        return None
 
     def _liberar_mesa_de_orden(self, orden: dict[str, object]) -> None:
         mesa_texto = str(orden.get("mesa", ""))
@@ -1652,6 +1341,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self.mesa_actual = mesa.replace("MESA", "Mesa")
         self._pedido_actual_controller.establecer_mesa(mesa)
         self._pedido_actual_controller.limpiar()
+        id_pedido = int(orden.get("id_pedido") or 0)
+        self._pedido_actual_controller.establecer_id_pedido_en_edicion(id_pedido if id_pedido > 0 else None)
         for item in list(orden.get("items", [])):
             self._pedido_actual_controller.agregar_item(
                 id_item=str(item.get("id_item") or item.get("id_producto") or item.get("nombre") or ""),
@@ -1662,13 +1353,16 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 categoria_db=str(item.get("categoria_db") or "Comida"),
             )
 
+        if self._pendientes_window and self._pendientes_window.winfo_exists():
+            self._pendientes_window.destroy()
+
     def _persistir_item_pendiente(self, orden: dict[str, object], item: dict[str, object]) -> bool:
         id_detalle = int(item.get("id_detalle") or 0)
         if id_detalle <= 0:
             self._ultimo_error_bd = "El item no tiene detalle asociado en BD"
             return False
 
-        connection = self._connect_db()
+        connection = self.controlador_mesero.modelo._connect_db()
         if connection is None:
             return False
 
@@ -1690,209 +1384,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 )
             connection.commit()
             return True
-        except Error as exc:
+        except Exception as exc:
             self._ultimo_error_bd = str(exc)
             connection.rollback()
             return False
-        finally:
-            connection.close()
-
-    def _eliminar_item_pendiente_bd(self, id_detalle: int) -> bool:
-        if id_detalle <= 0:
-            return False
-        connection = self._connect_db()
-        if connection is None:
-            return False
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute("DELETE FROM detalle_pedido WHERE id_detalle = %s", (id_detalle,))
-            connection.commit()
-            return True
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            connection.rollback()
-            return False
-        finally:
-            connection.close()
-
-    def _cancelar_pedido_pendiente_bd(self, id_pedido: int) -> bool:
-        connection = self._connect_db()
-        if connection is None:
-            return False
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "UPDATE detalle_pedido SET estado_item = 'Cancelado' WHERE id_pedido = %s",
-                    (id_pedido,),
-                )
-                cursor.execute(
-                    "UPDATE pedidos SET estado_pedido = 'Cancelado' WHERE id_pedido = %s",
-                    (id_pedido,),
-                )
-            connection.commit()
-            return True
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            connection.rollback()
-            return False
-        finally:
-            connection.close()
-
-    def _retirar_orden_pendiente(self, orden: dict[str, object]) -> None:
-        if orden in self._ordenes_pendientes:
-            self._ordenes_pendientes.remove(orden)
-
-        self._liberar_mesa_de_orden(orden)
-
-        ticket_restante = int(self._ordenes_pendientes[0]["ticket"]) if self._ordenes_pendientes else None
-        self._refrescar_ventana_pendientes(ticket_restante)
-
-    def _reproducir_campanita(self) -> None:
-        if winsound is not None:
-            winsound.MessageBeep(winsound.MB_ICONASTERISK)
-            self.after(140, lambda: winsound.MessageBeep(winsound.MB_ICONASTERISK))
-            return
-        self.bell()
-        self.after(160, self.bell)
-
-    def _programar_sincronizacion_pedidos(self) -> None:
-        if not self.winfo_exists():
-            return
-        if self._sync_pedidos_after_id is not None:
-            self.after_cancel(self._sync_pedidos_after_id)
-        self._sync_pedidos_after_id = self.after(self.SYNC_PEDIDOS_MS, self._sincronizar_pedidos_desde_bd)
-
-    def _sincronizar_pedidos_desde_bd(self) -> None:
-        self._sync_pedidos_after_id = None
-        if not self.winfo_exists():
-            return
-
-        anteriores = {
-            int(orden.get("id_pedido") or 0): self._normalizar_estado_pendiente(str(orden.get("estado") or ""))
-            for orden in self._ordenes_pendientes
-            if int(orden.get("id_pedido") or 0) > 0
-        }
-        self._cargar_ordenes_pendientes_desde_bd()
-
-        for orden in list(self._ordenes_pendientes):
-            id_pedido = int(orden.get("id_pedido") or 0)
-            estado_actual = self._normalizar_estado_pendiente(str(orden.get("estado") or ""))
-            estado_previo = anteriores.get(id_pedido)
-            if estado_previo is not None and estado_previo != estado_actual:
-                self._on_pedido_listo_event({"id_pedido": id_pedido, "estado_item": estado_actual})
-
-        if self._pendientes_window is not None and self._pendientes_window.winfo_exists():
-            self._refrescar_ventana_pendientes()
-
-        self._programar_sincronizacion_pedidos()
-
-    def _texto_notificacion_pedido_listo(self, id_pedido: int) -> str | None:
-        ticket = self._buscar_ticket_por_id_pedido(id_pedido)
-        if ticket is not None and ticket > 0:
-            return f"Pedido listo: TICKET #{ticket:05d}"
-        return None
-
-    def _buscar_ticket_por_id_pedido(self, id_pedido: int) -> int | None:
-        ticket_cache = int(self._tickets_por_pedido.get(id_pedido) or 0)
-        if ticket_cache > 0:
-            return ticket_cache
-        for orden in self._ordenes_pendientes:
-            if int(orden.get("id_pedido") or 0) == id_pedido:
-                ticket = int(orden.get("ticket") or 0)
-                return ticket if ticket > 0 else None
-        for orden in self._ordenes_auditoria:
-            if int(orden.get("id_pedido") or 0) == id_pedido:
-                ticket = int(orden.get("ticket") or 0)
-                return ticket if ticket > 0 else None
-        return self._consultar_ticket_por_id_pedido_bd(id_pedido)
-
-    def _asegurar_tabla_tickets(self, cursor) -> None:
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS pedidos_ticket_map (
-                id_pedido INT PRIMARY KEY,
-                ticket_numero INT NOT NULL,
-                fecha_registro DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-
-    def _consultar_ticket_por_id_pedido_bd(self, id_pedido: int) -> int | None:
-        connection = self._connect_db()
-        if connection is None:
-            return None
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                self._asegurar_tabla_tickets(cursor)
-                cursor.execute(
-                    "SELECT ticket_numero FROM pedidos_ticket_map WHERE id_pedido = %s LIMIT 1",
-                    (id_pedido,),
-                )
-                fila = cursor.fetchone()
-            ticket = int((fila or {}).get("ticket_numero") or 0)
-            if ticket > 0:
-                self._tickets_por_pedido[id_pedido] = ticket
-                return ticket
-            return None
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            return None
-        finally:
-            connection.close()
-
-    def _consultar_pedidos_listos_bd(self) -> list[int]:
-        connection = self._connect_db()
-        if connection is None:
-            return []
-
-        sql = """
-            SELECT DISTINCT p.id_pedido
-            FROM pedidos p
-            INNER JOIN detalle_pedido dp
-                ON dp.id_pedido = p.id_pedido
-            WHERE p.estado_pedido = 'Listo'
-              AND dp.estado_item = 'Listo'
-            ORDER BY p.id_pedido DESC
-        """
-
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                cursor.execute(sql)
-                filas = cursor.fetchall()
-            return [int(fila.get("id_pedido") or 0) for fila in filas if int(fila.get("id_pedido") or 0) > 0]
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            return []
-        finally:
-            connection.close()
-
-    def _consultar_estado_pedido_bd(self, id_pedido: int) -> str | None:
-        connection = self._connect_db()
-        if connection is None:
-            return None
-        try:
-            with connection.cursor(dictionary=True) as cursor:
-                cursor.execute(
-                    """
-                    SELECT estado_item
-                    FROM detalle_pedido
-                    WHERE id_pedido = %s
-                      AND estado_item NOT IN ('Cancelado', 'Servido')
-                    """,
-                    (id_pedido,),
-                )
-                filas = cursor.fetchall()
-            estados = {self._normalizar_estado_pendiente(str(fila.get("estado_item") or "")) for fila in filas}
-            if "Listo" in estados:
-                return "Listo"
-            if "En preparación" in estados:
-                return "En preparación"
-            if filas:
-                return "Enviado a cocina"
-            return None
-        except Error as exc:
-            self._ultimo_error_bd = str(exc)
-            return None
         finally:
             connection.close()
 
@@ -1994,21 +1489,21 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 hover_color="#B52619" if is_active else "#2A1A18",
             )
 
-    def _logout_to_login(self) -> None:
-        self._cleanup_event_listeners()
-        self.destroy()
-        if self.parent is not None and self.parent.winfo_exists():
-            self.parent.deiconify()
+
 
     def _cleanup_event_listeners(self) -> None:
-        if self._sync_pedidos_after_id is not None:
-            self.after_cancel(self._sync_pedidos_after_id)
+        sync_id = getattr(self, "_sync_pedidos_after_id", None)
+        if sync_id is not None:
+            self.after_cancel(sync_id)
             self._sync_pedidos_after_id = None
         event_bus.unsubscribe("pedido.listo", self._evento_pedido_listo)
         event_bus.unsubscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
 
     def destroy(self) -> None:
+        self.controlador_mesero.stop_polling()
         self._cleanup_event_listeners()
+        if self._pendientes_window is not None and self._pendientes_window.winfo_exists():
+            self._pendientes_window.destroy()
         super().destroy()
 
     def _preparation_notes_section(self, parent: tk.Misc) -> ctk.CTkFrame:
@@ -2167,6 +1662,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
         return icon
 
     def _logout_to_login(self) -> None:
+        self.controlador_mesero.stop_polling()
+        self._cleanup_event_listeners()
         if hasattr(self.parent, "show_login"):
             self.parent.show_login()
         else:
