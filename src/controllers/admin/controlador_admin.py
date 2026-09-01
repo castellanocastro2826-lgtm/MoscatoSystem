@@ -400,7 +400,7 @@ class ControladorAdmin:
         raw = str(rol or "").strip().lower()
         if raw in {"admin", "administrador"}:
             return "Administrador"
-        if raw in {"mesero", "mesonero", "waiter"}:
+        if raw in {"mesero", "waiter"}:
             return "Mesero"
         if raw in {"cocinero", "chef", "kitchen"}:
             return "Cocinero"

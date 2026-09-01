@@ -1,4 +1,4 @@
-CREATE DATABASE IF NOT EXISTS moscato_db
+﻿CREATE DATABASE IF NOT EXISTS moscato_db
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 USE moscato_db;
@@ -6,7 +6,7 @@ USE moscato_db;
 -- =========================
 -- TABLA CATEGORIAS (NUEVA)
 -- =========================
--- Almacena las clasificaciones del menú de forma dinámica
+-- Almacena las clasificaciones del menÃº de forma dinÃ¡mica
 CREATE TABLE IF NOT EXISTS categorias (
     id_categoria INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) UNIQUE NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS categorias (
 -- =========================
 -- TABLA EMPLEADOS (NUEVA)
 -- =========================
--- Almacena los datos físicos y de contacto del personal
+-- Almacena los datos fÃ­sicos y de contacto del personal
 CREATE TABLE IF NOT EXISTS empleados (
     id_empleado INT PRIMARY KEY AUTO_INCREMENT,
     nombres VARCHAR(100) NOT NULL,
@@ -35,13 +35,13 @@ CREATE TABLE IF NOT EXISTS empleados (
 -- =========================
 -- TABLA USUARIOS (MODIFICADA)
 -- =========================
--- Se eliminó "nombre" y se agregó "id_empleado" para normalizar
+-- Se eliminÃ³ "nombre" y se agregÃ³ "id_empleado" para normalizar
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario INT PRIMARY KEY AUTO_INCREMENT,
     id_empleado INT NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    rol ENUM('Administrador', 'Caja', 'Mesonero', 'Cocinero') NOT NULL,
+    rol ENUM('Administrador', 'Mesero', 'Cocinero') NOT NULL,
     activo TINYINT(1) DEFAULT 1,
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 -- =========================
 -- TABLA PRODUCTOS (MODIFICADA)
 -- =========================
--- Se cambió el ENUM 'categoria' por la llave foránea 'id_categoria'
+-- Se cambiÃ³ el ENUM 'categoria' por la llave forÃ¡nea 'id_categoria'
 CREATE TABLE IF NOT EXISTS productos (
     id_producto INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) NOT NULL,
@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS detalle_pedido (
     descripcion_preparacion TEXT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
     fecha_envio_cocina DATETIME DEFAULT CURRENT_TIMESTAMP,
-    estado_item ENUM('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',
+    estado_item ENUM('Pendiente', 'En cocina', 'En preparaciÃ³n', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',
 
     FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
@@ -159,17 +159,17 @@ INSERT INTO categorias (id_categoria, nombre, descripcion) VALUES
 INSERT INTO empleados (id_empleado, nombres, apellidos, documento_identidad, telefono, cargo, activo) VALUES
 (1, 'manuel', 'castro', '00000000', '00000000', 'Administrador', 1),
 (2, 'manuel', 'castro', '30000000', '00000000', 'Cocinero', 1),
-(3, 'manuel', 'castro', '123456789', '123456789', 'Mesonero', 1),
+(3, 'manuel', 'castro', '123456789', '123456789', 'Mesero', 1),
 (19, 'manuel', 'castro', 'USR-admin', NULL, 'Administrador', 1),
-(20, 'mesero', 'Sin apellido', 'USR-mesero1', NULL, 'Mesonero', 1),
-(21, 'mesero', 'Sin apellido', 'USR-mesero2', NULL, 'Mesonero', 1),
+(20, 'mesero', 'Sin apellido', 'USR-mesero1', NULL, 'Mesero', 1),
+(21, 'mesero', 'Sin apellido', 'USR-mesero2', NULL, 'Mesero', 1),
 (22, 'cocinero', 'Sin apellido', 'USR-cocinero1', NULL, 'Cocinero', 1),
 (23, 'cocinero', 'Sin apellido', 'USR-cocinero2', NULL, 'Cocinero', 1);
 
 INSERT INTO usuarios (id_usuario, id_empleado, username, password, rol, activo) VALUES
 (7, 19, 'admin', '123', 'Administrador', 1),
-(8, 20, 'mesero1', '0000', 'Mesonero', 1),
-(9, 21, 'mesero2', '0000', 'Mesonero', 1),
+(8, 20, 'mesero1', '0000', 'Mesero', 1),
+(9, 21, 'mesero2', '0000', 'Mesero', 1),
 (10, 22, 'cocinero1', '0000', 'Cocinero', 1),
 (11, 23, 'cocinero2', '0000', 'Cocinero', 1);
 
@@ -198,11 +198,11 @@ INSERT INTO productos (id_producto, nombre, descripcion, precio, id_categoria) V
 (10, 'Cerdo Agridulce', 'Cerdo agridulce, arroz 250 g, 1 lumpia y papas', 26000.00, 2),
 (11, 'Lomito en Salsa de Ostras', 'Lomito en salsa de ostras, arroz 250 g, 1 lumpia y papas', 26000.00, 2),
 (12, 'Combo Soltero', '1 pieza de pollo crocante y arepitas', 10000.00, 3),
-(13, 'Combo Dúo', '2 piezas de pollo crocante y arepitas', 14000.00, 3),
+(13, 'Combo DÃºo', '2 piezas de pollo crocante y arepitas', 14000.00, 3),
 (14, 'Combo Mediano', '4 piezas de pollo crocante y arepitas', 28000.00, 3),
 (15, 'Combo Broaster', '8 piezas de pollo, arepitas y papas', 59000.00, 3),
 (16, 'Combo Especial', '8 piezas de pollo, 10 arepitas, papas, ensalada y refresco de 1 litro', 55000.00, 4),
-(17, 'Súper Moscato', 'Arroz especial, pollo broaster y lumpias', 70000.00, 4),
+(17, 'SÃºper Moscato', 'Arroz especial, pollo broaster y lumpias', 70000.00, 4),
 (30, 'refresco 300ml', 'botella', 3000.00, 5),
 (31, 'refresco 1 litro', 'botella', 6000.00, 5),
 (32, 'refresco 1.25 litros', 'botella', 6000.00, 5),
@@ -217,10 +217,12 @@ INSERT INTO productos (id_producto, nombre, descripcion, precio, id_categoria) V
 (41, 'jugo mango', '', 8000.00, 5),
 (42, 'Serv. lumpias', '', 12000.00, 2);
 -- =========================
--- �NDICES PARA RENDIMIENTO
+-- ÍNDICES PARA RENDIMIENTO
 -- =========================
 ALTER TABLE mesas ADD INDEX idx_mesas_estado (estado);
 ALTER TABLE pedidos ADD INDEX idx_pedidos_estado (estado_pedido);
 ALTER TABLE pedidos ADD INDEX idx_pedidos_fechas (fecha_apertura, fecha_cierre);
 ALTER TABLE detalle_pedido ADD INDEX idx_detalle_estado (estado_item);
+
+
 

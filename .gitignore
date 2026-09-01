@@ -26,3 +26,5 @@ src/views/__pycache__/vista_unificada.cpython-314.pyc
 .antigravity/
 *.log
 app.log
+main.py
+docs/sistema moscato cap 5.1.md
