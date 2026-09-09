@@ -20,6 +20,7 @@ class AnalisisView:
 
     def __init__(self, parent):
         self.parent = parent
+        self._last_data = {}
         
         self.frame = ctk.CTkFrame(
             parent,
@@ -72,7 +73,8 @@ class AnalisisView:
         ctk.CTkButton(
             btn_frame, text="📥 Exportar Reporte", width=140, height=36,
             fg_color=self.COLORS["accent"], hover_color=self.COLORS["accent_hover"],
-            text_color=self.COLORS["text_primary"], font=("Segoe UI", 12, "bold")
+            text_color=self.COLORS["text_primary"], font=("Segoe UI", 12, "bold"),
+            command=self._exportar_reporte
         ).grid(row=0, column=1)
 
     def _build_body(self):
@@ -138,6 +140,7 @@ class AnalisisView:
         return lbl_val
 
     def actualizar_dashboard(self, data):
+        self._last_data = data
         self.lbl_estrella.configure(text=data.get("producto_estrella", "N/A") or "N/A")
         self.lbl_ticket.configure(text=f"{int(data.get('ticket_promedio', 0))}")
         self.lbl_pico.configure(text=data.get("pico_demanda", "N/A") or "N/A")
@@ -214,3 +217,66 @@ class AnalisisView:
 
             if idx % 2 == 0:
                 ctk.CTkLabel(self.chart_container, text=hora_str, font=("Segoe UI", 9), text_color=self.COLORS["text_secondary"]).grid(row=1, column=idx, pady=(5, 0))
+    def _exportar_reporte(self):
+        if not self._last_data:
+            from tkinter import messagebox
+            messagebox.showinfo("Exportar", "No hay datos para exportar.")
+            return
+            
+        from tkinter import filedialog
+        
+        filepath = filedialog.asksaveasfilename(
+            parent=self.frame,
+            title="Exportar Análisis",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="Analisis_Moscato.xlsx"
+        )
+        if not filepath:
+            return
+            
+        try:
+            import sys
+            import os
+            # Ensure src is in path to import utils
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+            if src_dir not in sys.path:
+                sys.path.insert(0, src_dir)
+                
+            from utils.excel_export import guardar_como_excel
+            
+            filas = []
+            
+            # Resumen
+            filas.append(["=== RESUMEN DE ANÁLISIS ===", ""])
+            filas.append(["Producto Estrella", self._last_data.get("producto_estrella", "N/A")])
+            filas.append(["Ticket Promedio", self._last_data.get("ticket_promedio", 0)])
+            filas.append(["Pico de Demanda", self._last_data.get("pico_demanda", "N/A")])
+            filas.append(["Categoría Más Rentable", self._last_data.get("categoria_rentable", "N/A")])
+            filas.append(["", ""])
+            
+            # Top 5
+            filas.append(["=== TOP 5 PLATOS MÁS VENDIDOS ===", ""])
+            filas.append(["Plato", "Total Vendido"])
+            top5 = self._last_data.get("top_5", [])
+            for item in top5:
+                filas.append([item.get("nombre", ""), item.get("total_vendido", 0)])
+            filas.append(["", ""])
+            
+            # Ventas por hora
+            filas.append(["=== VENTAS POR HORA ===", ""])
+            filas.append(["Hora del Día", "Cantidad de Pedidos"])
+            ventas_hora = self._last_data.get("ventas_por_hora", [])
+            for item in ventas_hora:
+                filas.append([item.get("hora", ""), item.get("pedidos", 0)])
+                
+            guardar_como_excel(filepath, filas, tipo="multitabla")
+            from tkinter import messagebox
+            messagebox.showinfo("Exportar", f"Reporte exportado correctamente a:\n{filepath}")
+        except ImportError:
+            from tkinter import messagebox
+            messagebox.showerror("Exportar", "Falta la librería openpyxl.\nEjecuta: pip install openpyxl")
+        except Exception as e:
+            from tkinter import messagebox
+            messagebox.showerror("Exportar", f"Error al exportar:\n{e}")

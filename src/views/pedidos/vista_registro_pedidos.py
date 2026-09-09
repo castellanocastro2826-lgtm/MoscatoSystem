@@ -3,11 +3,6 @@ import tkinter as tk
 from tkinter import messagebox
 from datetime import datetime
 
-try:
-    from tkcalendar import DateEntry
-    HAS_TKCALENDAR = True
-except ImportError:
-    HAS_TKCALENDAR = False
 
 class RegistroPedidosView:
     COLORS = {
@@ -47,6 +42,7 @@ class RegistroPedidosView:
         self.on_date_change = on_date_change
         self.on_view_order = on_view_order
         self.on_print_order = on_print_order
+        self._current_date = datetime.now().date()
         
         self.frame = ctk.CTkFrame(
             parent,
@@ -88,39 +84,47 @@ class RegistroPedidosView:
         date_block = ctk.CTkFrame(header, fg_color="transparent")
         date_block.grid(row=0, column=1, sticky="e")
         
-        if HAS_TKCALENDAR:
-            # Tkinter frame to hold DateEntry because it's a standard tk widget
-            cal_frame = tk.Frame(date_block, bg=self.COLORS["wine_panel"], padx=2, pady=2)
-            cal_frame.grid(row=0, column=0)
-            
-            self.date_picker = DateEntry(
-                cal_frame, 
-                width=16, 
-                background=self.COLORS["accent"], 
-                foreground='white', 
-                borderwidth=0,
-                font=(self.FONT, 10, "bold"),
-                date_pattern='y-mm-dd',
-                state="readonly"
-            )
-            self.date_picker.pack(padx=2, pady=2)
-            self.date_picker.bind("<<DateEntrySelected>>", self._handle_date_change)
-        else:
-            # Fallback if tkcalendar is not installed
-            self.lbl_date = ctk.CTkLabel(
-                date_block, 
-                text=f"Fecha: {datetime.now().strftime('%Y-%m-%d')}", 
-                font=(self.FONT, 12, "bold"), 
-                text_color=self.COLORS["text_warm"],
-                fg_color=self.COLORS["wine_panel"],
-                corner_radius=6,
-                padx=10, pady=6
-            )
-            self.lbl_date.grid(row=0, column=0)
+        # Date Navigation
+        nav_frame = ctk.CTkFrame(date_block, fg_color=self.COLORS["wine_panel"], corner_radius=6, border_width=1, border_color=self.COLORS["panel_border"])
+        nav_frame.grid(row=0, column=0)
+        
+        ctk.CTkButton(
+            nav_frame, text="◀", width=30, height=30,
+            fg_color="transparent", hover_color=self.COLORS["hover_surface"],
+            text_color=self.COLORS["text_warm"], font=(self.FONT, 12, "bold"),
+            command=self._prev_day
+        ).grid(row=0, column=0, padx=2)
+        
+        self.lbl_date = ctk.CTkLabel(
+            nav_frame, 
+            text=f"Fecha: {self._current_date.strftime('%Y-%m-%d')}", 
+            font=(self.FONT, 12, "bold"), 
+            text_color=self.COLORS["text_primary"],
+            width=120
+        )
+        self.lbl_date.grid(row=0, column=1, padx=5)
+        
+        ctk.CTkButton(
+            nav_frame, text="▶", width=30, height=30,
+            fg_color="transparent", hover_color=self.COLORS["hover_surface"],
+            text_color=self.COLORS["text_warm"], font=(self.FONT, 12, "bold"),
+            command=self._next_day
+        ).grid(row=0, column=2, padx=2)
 
-    def _handle_date_change(self, event=None):
-        if self.on_date_change and HAS_TKCALENDAR:
-            self.on_date_change(self.date_picker.get_date())
+    def _prev_day(self):
+        from datetime import timedelta
+        self._current_date -= timedelta(days=1)
+        self._update_date_label()
+        
+    def _next_day(self):
+        from datetime import timedelta
+        self._current_date += timedelta(days=1)
+        self._update_date_label()
+        
+    def _update_date_label(self):
+        self.lbl_date.configure(text=f"Fecha: {self._current_date.strftime('%Y-%m-%d')}")
+        if self.on_date_change:
+            self.on_date_change(self._current_date)
 
     def _build_table_area(self):
         table_card = ctk.CTkFrame(
