@@ -10,7 +10,12 @@ class MesasView:
     """Vista MVC para pintar el plano de mesas en formato grid."""
 
     COLORES_ESTADO = {
-        "libre": {"fg": "#2F5C36", "hover": "#355E49", "border": "#78F0A6", "text": "#F1F7F1"},
+        "libre": {
+            "fg": "#355E49",
+            "hover": "#41785C",
+            "border": "#78F0A6",
+            "text": "#F1F7F1",
+        },
         "ocupada": {
             "fg": "#7A2C25",
             "hover": "#95382F",

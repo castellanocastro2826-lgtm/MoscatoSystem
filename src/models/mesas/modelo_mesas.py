@@ -70,8 +70,9 @@ class MesasModel:
             try:
                 with connection.cursor() as cursor:
                     cursor.execute(sql, (estado_db, id_mesa))
+                    actualizado = cursor.rowcount > 0
                 connection.commit()
-                return True
+                return actualizado
             except Error:
                 connection.rollback()
                 raise

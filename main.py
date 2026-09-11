@@ -41,10 +41,10 @@ class DatabaseConnection:
 class LoginWindow(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Restaurante Moscato - Inicio de Sesion")
-        self.geometry("860x520")
-        self.minsize(760, 460)
-        self.configure(fg_color="#1A1C1E")
+        self.title("Restaurante Moscato - Inicio de Sesión")
+        self.geometry("900x600")
+        self.minsize(800, 500)
+        self.configure(fg_color="#0D0D0D")
 
         self.db = DatabaseConnection()
         self._build_layout()
@@ -53,105 +53,200 @@ class LoginWindow(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        container = ctk.CTkFrame(self, fg_color="#1A1C1E", corner_radius=0)
+        container = ctk.CTkFrame(self, fg_color="#0D0D0D", corner_radius=0)
+        self.login_container = container
         container.grid(row=0, column=0, sticky="nsew")
         container.grid_columnconfigure(0, weight=1)
         container.grid_rowconfigure(0, weight=1)
 
-        card = ctk.CTkFrame(
-            container,
-            fg_color="#23272A",
-            border_width=1,
-            border_color="#34393D",
-            corner_radius=12,
-        )
-        card.grid(row=0, column=0, padx=24, pady=24)
-        card.grid_columnconfigure(0, weight=1)
+        # Sombras rojas (Glow effect simulado con frames degradados)
+        glow_1 = ctk.CTkFrame(container, fg_color="#100505", corner_radius=30, width=730, height=580)
+        glow_1.grid(row=0, column=0)
+        glow_1.grid_propagate(False)
+        glow_1.grid_columnconfigure(0, weight=1)
+        glow_1.grid_rowconfigure(0, weight=1)
 
+        glow_2 = ctk.CTkFrame(glow_1, fg_color="#180608", corner_radius=24, width=690, height=540)
+        glow_2.grid(row=0, column=0)
+        glow_2.grid_propagate(False)
+        glow_2.grid_columnconfigure(0, weight=1)
+        glow_2.grid_rowconfigure(0, weight=1)
+
+        glow_3 = ctk.CTkFrame(glow_2, fg_color="#22080A", corner_radius=20, width=660, height=510)
+        glow_3.grid(row=0, column=0)
+        glow_3.grid_propagate(False)
+        glow_3.grid_columnconfigure(0, weight=1)
+        glow_3.grid_rowconfigure(0, weight=1)
+
+        # Tarjeta central (Mas ancha, proporciones fijas)
+        card = ctk.CTkFrame(
+            glow_3,
+            fg_color="#121212",
+            border_width=1,
+            border_color="#3A0A0F",
+            corner_radius=16,
+            width=650,
+            height=500,
+        )
+        card.grid(row=0, column=0)
+        card.grid_propagate(False)
+        card.grid_columnconfigure(0, weight=1)
+        card.grid_rowconfigure(4, weight=1) # Empuja la barra de estado abajo
+        
+        # Logo / Icono
+        icon_frame = ctk.CTkFrame(card, fg_color="#240A0D", corner_radius=12, width=48, height=48)
+        icon_frame.grid(row=0, column=0, pady=(36, 12))
+        icon_frame.grid_propagate(False)
+        icon_frame.grid_columnconfigure(0, weight=1)
+        icon_frame.grid_rowconfigure(0, weight=1)
+        ctk.CTkLabel(icon_frame, text="🍴", font=("Segoe UI", 24), text_color="#E50914").grid(row=0, column=0)
+
+        # Titulos
         ctk.CTkLabel(
             card,
             text="Restaurante Moscato",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 28, "bold"),
-        ).grid(row=0, column=0, sticky="w", pady=(0, 4))
+            text_color="#FFFFFF",
+            font=("Segoe UI", 32, "bold"),
+        ).grid(row=1, column=0, pady=(0, 4))
+        
         ctk.CTkLabel(
             card,
-            text="Sistema de gestion de pedidos - Acceso de personal",
-            text_color="#D6C9A8",
-            font=("Segoe UI", 12),
-        ).grid(row=1, column=0, sticky="w", pady=(0, 18))
+            text="Sistema de gestión de pedidos • Acceso de personal",
+            text_color="#808080",
+            font=("Segoe UI", 13),
+        ).grid(row=2, column=0, pady=(0, 32))
 
-        ctk.CTkLabel(card, text="Usuario", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
-            row=2, column=0, sticky="w", pady=(0, 6)
-        )
+        # Contenedor del formulario
+        form_frame = ctk.CTkFrame(card, fg_color="transparent")
+        form_frame.grid(row=3, column=0, padx=80, sticky="ew")
+        form_frame.grid_columnconfigure(0, weight=1)
+
+        # --- Usuario ---
+        user_labels = ctk.CTkFrame(form_frame, fg_color="transparent")
+        user_labels.grid(row=0, column=0, sticky="ew", pady=(0, 6))
+        user_labels.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(user_labels, text="Usuario o identificador", text_color="#E0E0E0", font=("Segoe UI", 12, "bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(user_labels, text="ID / Nick", text_color="#606060", font=("Segoe UI", 11)).grid(row=0, column=1, sticky="e")
+
         self.username_var = tk.StringVar()
         self.username_entry = ctk.CTkEntry(
-            card,
+            form_frame,
             textvariable=self.username_var,
-            width=420,
-            height=40,
-            fg_color="#151719",
-            border_color="#35393D",
-            text_color="#F4EBD0",
+            height=48,
+            fg_color="#0D0D0D",
+            border_color="#2A2A2A",
+            text_color="#FFFFFF",
+            placeholder_text="👤 admin",
+            placeholder_text_color="#606060",
+            font=("Segoe UI", 14),
+            corner_radius=8
         )
-        self.username_entry.grid(row=3, column=0, sticky="ew", pady=(0, 12))
+        self.username_entry.grid(row=1, column=0, sticky="ew", pady=(0, 20))
 
-        ctk.CTkLabel(card, text="Contraseña", text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).grid(
-            row=4, column=0, sticky="w", pady=(0, 6)
-        )
+        # --- Contrasena ---
+        pass_labels = ctk.CTkFrame(form_frame, fg_color="transparent")
+        pass_labels.grid(row=2, column=0, sticky="ew", pady=(0, 6))
+        pass_labels.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(pass_labels, text="Contraseña", text_color="#E0E0E0", font=("Segoe UI", 12, "bold")).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(pass_labels, text="Teclado numérico", text_color="#606060", font=("Segoe UI", 11)).grid(row=0, column=1, sticky="e")
+
         self.password_var = tk.StringVar()
+        self.password_var.trace_add("write", self._validate_password)
+
         self.password_entry = ctk.CTkEntry(
-            card,
+            form_frame,
             textvariable=self.password_var,
-            show="*",
-            width=420,
-            height=40,
-            fg_color="#151719",
-            border_color="#35393D",
-            text_color="#F4EBD0",
+            show="•",
+            height=48,
+            fg_color="#0D0D0D",
+            border_color="#2A2A2A",
+            text_color="#FFFFFF",
+            placeholder_text="🔒 ••••",
+            placeholder_text_color="#606060",
+            font=("Segoe UI", 14),
+            corner_radius=8
         )
-        self.password_entry.grid(row=5, column=0, sticky="ew", pady=(0, 18))
+        self.password_entry.grid(row=3, column=0, sticky="ew", pady=(0, 4))
 
-        ctk.CTkButton(
-            card,
-            text="Iniciar sesion",
-            fg_color="#8C1A11",
-            hover_color="#A1241A",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 13, "bold"),
-            height=40,
+        # Warning Label de seguridad
+        self.password_warning_label = ctk.CTkLabel(
+            form_frame,
+            text="",
+            text_color="#D91627",
+            font=("Segoe UI", 11, "bold")
+        )
+        self.password_warning_label.grid(row=4, column=0, sticky="w", pady=(0, 16))
+
+        # Boton Iniciar sesion
+        self.login_btn = ctk.CTkButton(
+            form_frame,
+            text="Iniciar sesión  →   [ENTER]",
+            fg_color="#D91627", # Rojo mas intenso/puro
+            hover_color="#B0121F",
+            text_color="#FFFFFF",
+            font=("Segoe UI", 15, "bold"),
+            height=50,
+            corner_radius=8,
             command=self._attempt_login,
-        ).grid(row=6, column=0, sticky="ew")
-
-        ctk.CTkButton(
-            card,
-            text="Ver Diseno Mesero (Demo)",
-            fg_color="#4A1E1A",
-            hover_color="#5B241F",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 12, "bold"),
-            height=38,
-            command=self._open_mesero_design_demo,
-        ).grid(row=7, column=0, sticky="ew", pady=(8, 0))
-
-        ctk.CTkButton(
-            card,
-            text="Ver Diseno Cocina (Demo)",
-            fg_color="#4A1E1A",
-            hover_color="#5B241F",
-            text_color="#F4EBD0",
-            font=("Segoe UI", 12, "bold"),
-            height=38,
-            command=self._open_cocina_design_demo,
-        ).grid(row=8, column=0, sticky="ew", pady=(8, 0))
-
-        self.status_var = tk.StringVar(value="Listo para autenticar")
-        ctk.CTkLabel(card, textvariable=self.status_var, text_color="#D6C9A8", font=("Segoe UI", 11)).grid(
-            row=9, column=0, sticky="w", pady=(12, 0)
         )
+        self.login_btn.grid(row=5, column=0, sticky="ew")
+
+        # Barra de estado inferior (dentro de la card, anclada abajo por row=6)
+        status_frame = ctk.CTkFrame(card, fg_color="#151515", corner_radius=0, height=44)
+        status_frame.grid(row=6, column=0, sticky="sew")
+        status_frame.grid_columnconfigure(1, weight=1)
+        status_frame.grid_propagate(False)
+
+        # Dot verde + texto
+        left_status = ctk.CTkFrame(status_frame, fg_color="transparent")
+        left_status.grid(row=0, column=0, sticky="w", padx=20, pady=10)
+        ctk.CTkLabel(left_status, text="●", text_color="#10B981", font=("Segoe UI", 10)).grid(row=0, column=0, padx=(0, 6))
+        self.status_var = tk.StringVar(value="Listo para autenticar")
+        ctk.CTkLabel(left_status, textvariable=self.status_var, text_color="#A0A0A0", font=("Segoe UI", 11)).grid(row=0, column=1)
+
+        # Info del servidor
+        ctk.CTkLabel(
+            status_frame, 
+            text="Servidor: 127.0.0.1:3306  -  Build v2.4.2", 
+            text_color="#606060", 
+            font=("Segoe UI", 11)
+        ).grid(row=0, column=2, sticky="e", padx=20, pady=10)
 
         self.bind("<Return>", lambda _event: self._attempt_login())
+        self.username_entry.bind("<KeyRelease>", self._validate_password)
+        self.username_entry.bind("<FocusIn>", self._validate_password)
+        self.password_entry.bind("<KeyRelease>", self._validate_password)
+        self.password_entry.bind("<FocusIn>", self._validate_password)
+        
         self.username_entry.focus_set()
+
+    def _validate_password(self, *args) -> None:
+        warnings = []
+        
+        # 1. Chequear Bloq Mayus (Seguridad)
+        caps_on = False
+        try:
+            import ctypes
+            hllDll = ctypes.WinDLL("User32.dll")
+            caps_on = hllDll.GetKeyState(0x14) & 1
+        except Exception:
+            pass
+            
+        if caps_on:
+            warnings.append("Bloq Mayús Activado")
+
+        # 2. Chequear numeros unicamente
+        val = self.password_var.get()
+        if val and not val.isdigit():
+            warnings.append("La contraseña es solo numérica")
+            # Extraer las letras en tiempo real
+            clean_val = ''.join(c for c in val if c.isdigit())
+            self.password_var.set(clean_val)
+            
+        if warnings:
+            self.password_warning_label.configure(text="⚠️ " + " | ".join(warnings))
+        else:
+            self.password_warning_label.configure(text="")
 
     def _attempt_login(self) -> None:
         username = self.username_var.get().strip()
@@ -169,7 +264,10 @@ class LoginWindow(ctk.CTk):
             try:
                 with connection.cursor(dictionary=True) as cursor:
                     cursor.execute(
-                        "SELECT id_usuario, nombre, username, rol FROM usuarios WHERE username = %s AND password = %s AND activo = 1",
+                        "SELECT u.id_usuario, e.nombres as nombre, u.username, u.rol "
+                        "FROM usuarios u "
+                        "LEFT JOIN empleados e ON u.id_empleado = e.id_empleado "
+                        "WHERE u.username = %s AND u.password = %s AND u.activo = 1",
                         (username, password),
                     )
                     user = cursor.fetchone()
@@ -192,41 +290,44 @@ class LoginWindow(ctk.CTk):
             messagebox.showerror("Error", f"No se pudo validar el usuario: {exc}")
 
     def _open_dashboard(self, user: dict) -> None:
-        self.withdraw()
+        self.login_container.grid_remove()
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
         rol = str(user.get("rol", "")).strip().lower()
         nombre_real = str(user.get("nombre", "")).strip()
 
         if rol == "administrador":
             vista = UnifiedDashboardWindow(self, usuario=nombre_real)
+            vista.grid(row=0, column=0, sticky="nsew")
             ControladorAdmin(vista)
-            vista.protocol("WM_DELETE_WINDOW", self.destroy)
         elif rol == "cocinero":
             modelo = ModeloCocina()
             vista = CocinaDesignWindow(self, usuario=nombre_real)
+            vista.grid(row=0, column=0, sticky="nsew")
             controlador = ControladorCocina(vista, modelo)
             vista.controlador = controlador
             controlador.actualizar_pantalla()
-            vista.protocol("WM_DELETE_WINDOW", self.destroy)
         elif rol == "mesonero":
             vista = MeseroDesignWindow(self, usuario=nombre_real)
-            vista.protocol("WM_DELETE_WINDOW", self.destroy)
+            vista.grid(row=0, column=0, sticky="nsew")
         else:
             vista = MeseroDesignWindow(self, usuario=nombre_real)
-            vista.protocol("WM_DELETE_WINDOW", self.destroy)
+            vista.grid(row=0, column=0, sticky="nsew")
 
     def _open_mesero_design_demo(self) -> None:
-        self.withdraw()
+        self.login_container.grid_remove()
         demo_window = MeseroDesignWindow(self, usuario="Alejandro V.")
-        demo_window.protocol("WM_DELETE_WINDOW", self.destroy)
+        demo_window.grid(row=0, column=0, sticky="nsew")
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
 
     def _open_cocina_design_demo(self) -> None:
-        self.withdraw()
+        self.login_container.grid_remove()
         modelo = ModeloCocina()
         demo_window = CocinaDesignWindow(self, usuario="Cocina Central")
+        demo_window.grid(row=0, column=0, sticky="nsew")
         controlador = ControladorCocina(demo_window, modelo)
         demo_window.controlador = controlador
         controlador.actualizar_pantalla()
-        demo_window.protocol("WM_DELETE_WINDOW", self.destroy)
+        self.protocol("WM_DELETE_WINDOW", self.destroy)
 
 
 def main() -> None:

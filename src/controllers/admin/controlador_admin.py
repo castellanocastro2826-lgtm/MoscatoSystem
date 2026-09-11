@@ -258,19 +258,13 @@ class ControladorAdmin:
         if self.modelo.crear_empleado(nombre, rol, username, password):
             self._registrar_auditoria("INSERTAR", "usuarios", f"Se creó el usuario/empleado '{nombre}' con rol {rol}.")
             self.cargar_empleados()
+            messagebox.showinfo("Usuario creado", f"El usuario '{username}' fue creado correctamente.", parent=self.vista)
             return
-        new_id = max([int(emp.get("id", 0)) for emp in self._all_empleados] + [0]) + 1
-        self._all_empleados.append(
-            {
-                "id": new_id,
-                "name": nombre,
-                "username": username,
-                "role": rol,
-                "status": "Fichado",
-                "time": self._formatear_time(datetime.now()),
-            }
+        messagebox.showerror(
+            "No se pudo crear el usuario",
+            self.modelo.ultimo_error or "MySQL rechazo la operacion. Verifica la estructura y los datos de la base de datos.",
+            parent=self.vista,
         )
-        self._render_filtrado_actual()
 
     def handle_edit_employee(self, emp_id: int) -> None:
         empleado = self._find_by_id(emp_id)
