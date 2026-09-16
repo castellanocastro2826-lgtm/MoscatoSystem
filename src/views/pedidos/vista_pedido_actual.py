@@ -149,6 +149,18 @@ class VistaPedidoActual:
             command=self._call_salir,
         ).grid(row=0, column=0, sticky="w")
 
+        ctk.CTkButton(
+            footer,
+            text="🗑 Limpiar Ticket",
+            corner_radius=8,
+            fg_color="#4A1418",
+            hover_color="#631B20",
+            text_color="#F4EBD0",
+            font=("Segoe UI", 12, "bold"),
+            height=34,
+            command=self._call_limpiar,
+        ).grid(row=0, column=1, sticky="e")
+
     def configurar_acciones(
         self,
         on_sumar: Callable[[str], None] | None = None,
@@ -158,6 +170,7 @@ class VistaPedidoActual:
         on_a_cocina: Callable[[], None] | None = None,
         on_cerrar_y_pagar: Callable[[], None] | None = None,
         on_salir: Callable[[], None] | None = None,
+        on_limpiar: Callable[[], None] | None = None,
     ) -> None:
         self.on_sumar = on_sumar
         self.on_restar = on_restar
@@ -166,6 +179,7 @@ class VistaPedidoActual:
         self.on_a_cocina = on_a_cocina
         self.on_cerrar_y_pagar = on_cerrar_y_pagar
         self.on_salir = on_salir
+        self.on_limpiar = on_limpiar
 
     def redibujar(self, items: list[dict[str, object]]) -> None:
         if self._items_container is None:
@@ -449,3 +463,9 @@ class VistaPedidoActual:
     def _call_salir(self) -> None:
         if self.on_salir is not None:
             self.on_salir()
+
+    def _call_limpiar(self) -> None:
+        from tkinter import messagebox
+        if messagebox.askyesno("Limpiar Ticket", "¿Está seguro de querer vaciar completamente el ticket actual?"):
+            if self.on_limpiar is not None:
+                self.on_limpiar()

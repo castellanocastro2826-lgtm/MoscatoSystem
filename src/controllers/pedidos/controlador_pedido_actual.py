@@ -34,6 +34,7 @@ class ControladorPedidoActual:
             on_a_cocina=self.enviar_a_cocina,
             on_cerrar_y_pagar=self.cerrar_mesa_y_pagar,
             on_salir=self.salir,
+            on_limpiar=self.limpiar,
         )
         self.refrescar()
 
@@ -114,6 +115,8 @@ class ControladorPedidoActual:
         items = self.modelo.obtener_items()
         self.vista.redibujar(items)
         self.vista.actualizar_totales(self.modelo.calcular_totales())
+        from src.core.event_bus import event_bus
+        event_bus.emit("pedido_actual.items_cambiados", {"tiene_items": len(items) > 0})
 
     def establecer_ticket(self, numero_ticket: int) -> None:
         self.vista.actualizar_ticket(numero_ticket)

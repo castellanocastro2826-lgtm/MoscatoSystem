@@ -253,7 +253,7 @@ class LoginWindow(ctk.CTk):
         password = self.password_var.get().strip()
 
         if not username or not password:
-            messagebox.showwarning("Campos requeridos", "Debe ingresar usuario y contrasena.")
+            messagebox.showwarning("Campos requeridos", "Debe ingresar usuario y contraseña.")
             return
 
         self.status_var.set("Verificando credenciales...")

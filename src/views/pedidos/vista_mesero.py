@@ -83,10 +83,12 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._evento_pedido_listo = self._on_pedido_listo_event
         self._evento_mesa_seleccionada = self._on_mesa_seleccionada_event
         self._evento_pedidos_actualizados = self._on_pedidos_actualizados
+        self._evento_items_cambiados = self._on_pedido_actual_items_cambiados
         
         event_bus.subscribe("pedido.listo", self._evento_pedido_listo)
         event_bus.subscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
         event_bus.subscribe("pedidos.pendientes_actualizados", self._evento_pedidos_actualizados)
+        event_bus.subscribe("pedido_actual.items_cambiados", self._evento_items_cambiados)
 
         self._productos_por_categoria: dict[str, list[dict[str, object]]] = {}
         self._cargar_productos_catalogo()
@@ -747,10 +749,28 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 }
             )
 
+    def _on_pedido_actual_items_cambiados(self, evento: dict[str, object]) -> None:
+        tiene_items = bool(evento.get("tiene_items", False))
+        if not tiene_items and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
+            if self._pedido_actual_controller and self._pedido_actual_controller.obtener_id_pedido_en_edicion() is None:
+                self._mesas_controller.liberar_mesa(self._mesa_seleccionada_id)
+        elif tiene_items and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
+            if self._pedido_actual_view and self._pedido_actual_view.tipo_pedido_var.get() == "Mesa":
+                self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
+
     def _on_click_mesa_plano(self, id_mesa: int) -> None:
-        self._mesa_seleccionada_id = int(id_mesa)
+        id_mesa_int = int(id_mesa)
+        mesa_anterior = self._mesa_seleccionada_id
+        
+        if mesa_anterior is not None and mesa_anterior != id_mesa_int:
+            if self._mesas_controller is not None:
+                estado_anterior = self._mesas_view._estado_mesas.get(mesa_anterior, "Libre") if self._mesas_view else "Libre"
+                if str(estado_anterior).strip().lower() in ["atencion", "atención"]:
+                    self._mesas_controller.liberar_mesa(mesa_anterior)
+
+        self._mesa_seleccionada_id = id_mesa_int
         if self._mesas_controller is not None:
-            self._mesas_controller.seleccionar_mesa(id_mesa)
+            self._mesas_controller.seleccionar_mesa(id_mesa_int)
 
     def _on_mesa_seleccionada_event(self, evento: dict[str, object]) -> None:
         id_mesa = int(evento.get("id_mesa") or 0)
@@ -777,6 +797,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
             
         if self._mesas_view is not None:
             self._mesas_view.marcar_mesa_seleccionada(id_mesa)
+
+        if self._pedido_actual_model and self._pedido_actual_model.obtener_items():
+            if self._mesas_controller is not None:
+                self._mesas_controller.registrar_primer_item(id_mesa)
 
     def _on_tipo_pedido_changed(self, *args) -> None:
         if not self._pedido_actual_view or not self._mesas_controller or not self._mesa_seleccionada_id:
@@ -1498,6 +1522,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
             self._sync_pedidos_after_id = None
         event_bus.unsubscribe("pedido.listo", self._evento_pedido_listo)
         event_bus.unsubscribe("mesa.seleccionada", self._evento_mesa_seleccionada)
+        event_bus.unsubscribe("pedidos.pendientes_actualizados", self._evento_pedidos_actualizados)
+        event_bus.unsubscribe("pedido_actual.items_cambiados", self._evento_items_cambiados)
 
     def destroy(self) -> None:
         self.controlador_mesero.stop_polling()
