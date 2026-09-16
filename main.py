@@ -295,8 +295,17 @@ class LoginWindow(ctk.CTk):
         rol = str(user.get("rol", "")).strip().lower()
         nombre_real = str(user.get("nombre", "")).strip()
 
+        id_usuario = user.get("id_usuario")
+
+        try:
+            from src.models.auditoria.auditoria_model import AuditoriaModel
+            am = AuditoriaModel()
+            am.registrar_accion(id_usuario, "LOGIN", "usuarios", f"Inicio de sesión exitoso ({rol})")
+        except Exception:
+            pass
+
         if rol == "administrador":
-            vista = UnifiedDashboardWindow(self, usuario=nombre_real)
+            vista = UnifiedDashboardWindow(self, usuario=nombre_real, id_usuario=id_usuario)
             vista.grid(row=0, column=0, sticky="nsew")
             ControladorAdmin(vista)
         elif rol == "cocinero":
