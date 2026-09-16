@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS detalle_pedido (
     descripcion_preparacion TEXT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
     fecha_envio_cocina DATETIME DEFAULT CURRENT_TIMESTAMP,
-    estado_item ENUM('Pendiente', 'En cocina', 'En preparaciÃ³n', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',
+    estado_item ENUM('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',
 
     FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS detalle_pedido (
 -- =========================
 INSERT INTO categorias (id_categoria, nombre, descripcion) VALUES
 (1, 'Moscato Chino - Compartir', 'Combos y para compartir de comida china'),
-(2, 'Moscato Chino - Personal', 'Platos individuales de comida china y acompanantes'),
+(2, 'Moscato Chino - Personal', 'Platos individuales de comida china y acompañantes'),
 (3, 'Moscato Broaster', 'Combos de pollo a la broaster tradicional'),
 (4, 'Promociones', 'Ofertas especiales y combos mixtos'),
 (5, 'Bebidas', 'Refrescos, jugos y merengadas');
@@ -198,11 +198,11 @@ INSERT INTO productos (id_producto, nombre, descripcion, precio, id_categoria) V
 (10, 'Cerdo Agridulce', 'Cerdo agridulce, arroz 250 g, 1 lumpia y papas', 26000.00, 2),
 (11, 'Lomito en Salsa de Ostras', 'Lomito en salsa de ostras, arroz 250 g, 1 lumpia y papas', 26000.00, 2),
 (12, 'Combo Soltero', '1 pieza de pollo crocante y arepitas', 10000.00, 3),
-(13, 'Combo DÃºo', '2 piezas de pollo crocante y arepitas', 14000.00, 3),
+(13, 'Combo Dúo', '2 piezas de pollo crocante y arepitas', 14000.00, 3),
 (14, 'Combo Mediano', '4 piezas de pollo crocante y arepitas', 28000.00, 3),
 (15, 'Combo Broaster', '8 piezas de pollo, arepitas y papas', 59000.00, 3),
 (16, 'Combo Especial', '8 piezas de pollo, 10 arepitas, papas, ensalada y refresco de 1 litro', 55000.00, 4),
-(17, 'SÃºper Moscato', 'Arroz especial, pollo broaster y lumpias', 70000.00, 4),
+(17, 'Súper Moscato', 'Arroz especial, pollo broaster y lumpias', 70000.00, 4),
 (30, 'refresco 300ml', 'botella', 3000.00, 5),
 (31, 'refresco 1 litro', 'botella', 6000.00, 5),
 (32, 'refresco 1.25 litros', 'botella', 6000.00, 5),
