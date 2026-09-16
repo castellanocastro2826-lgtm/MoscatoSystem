@@ -683,7 +683,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
                     if numero is not None:
                         for m_id, m_data in self._mesas_por_id.items():
                             if m_data.get("numero_mesa") == numero:
-                                self._mesas_controller._cambiar_estado_mesa(m_id, "Ocupada")
+                                nuevo_estado = "Atencion" if estado_item == "En preparación" else "Ocupada"
+                                self._mesas_controller._cambiar_estado_mesa(m_id, nuevo_estado)
                                 break
                                 
             if estado_item == "Listo":

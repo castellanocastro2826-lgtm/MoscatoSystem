@@ -95,8 +95,7 @@ class VistaPedidoActual:
         totals.grid_columnconfigure(1, weight=1)
 
         self._subtotal_value = self._total_row(totals, 0, "Subtotal")
-        self._impuesto_value = self._total_row(totals, 1, "Impuesto (16%)")
-        self._total_value = self._total_row(totals, 2, "Total a pagar", total=True)
+        self._total_value = self._total_row(totals, 1, "Total a pagar", total=True)
 
         actions = ctk.CTkFrame(self.frame, fg_color="transparent")
         actions.grid(row=3, column=0, sticky="ew", padx=14, pady=(0, 14))
@@ -110,7 +109,7 @@ class VistaPedidoActual:
             text_color="#F4EBD0",
             font=("Segoe UI", 12, "bold"),
             command=self._call_precuenta,
-        ).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        ).grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=(0, 10))
 
         ctk.CTkButton(
             actions,
@@ -120,25 +119,10 @@ class VistaPedidoActual:
             text_color="#2A1718",
             font=("Segoe UI", 12, "bold"),
             command=self._call_a_cocina,
-        ).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        ).grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=(0, 10))
 
         ctk.CTkButton(
             actions,
-            text="Cerrar Mesa & Pagar",
-            fg_color="#4FA64F",
-            hover_color="#66BB66",
-            text_color="#0F2010",
-            font=("Segoe UI", 12, "bold"),
-            command=self._call_cerrar_y_pagar,
-        ).grid(row=1, column=0, columnspan=2, sticky="ew", pady=(8, 0))
-
-        footer = ctk.CTkFrame(self.frame, fg_color="transparent")
-        footer.grid(row=4, column=0, sticky="ew", padx=14, pady=(0, 14))
-        footer.grid_columnconfigure(0, weight=1)
-        footer.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(
-            footer,
             text="Salir",
             corner_radius=8,
             fg_color="#1A0D0C",
@@ -147,10 +131,10 @@ class VistaPedidoActual:
             font=("Segoe UI", 12, "bold"),
             height=34,
             command=self._call_salir,
-        ).grid(row=0, column=0, sticky="w")
+        ).grid(row=1, column=0, sticky="ew", padx=(0, 6))
 
         ctk.CTkButton(
-            footer,
+            actions,
             text="🗑 Limpiar Ticket",
             corner_radius=8,
             fg_color="#4A1418",
@@ -159,7 +143,7 @@ class VistaPedidoActual:
             font=("Segoe UI", 12, "bold"),
             height=34,
             command=self._call_limpiar,
-        ).grid(row=0, column=1, sticky="e")
+        ).grid(row=1, column=1, sticky="ew", padx=(6, 0))
 
     def configurar_acciones(
         self,
@@ -290,8 +274,6 @@ class VistaPedidoActual:
     def actualizar_totales(self, totales: dict[str, float]) -> None:
         if self._subtotal_value is not None:
             self._subtotal_value.configure(text=f"${totales.get('subtotal', 0.0):,.0f}".replace(",", "."))
-        if self._impuesto_value is not None:
-            self._impuesto_value.configure(text=f"${totales.get('impuesto', 0.0):,.0f}".replace(",", "."))
         if self._total_value is not None:
             self._total_value.configure(text=f"${totales.get('total', 0.0):,.0f}".replace(",", "."))
 

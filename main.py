@@ -1,4 +1,4 @@
-﻿import platform
+import platform
 platform.win32_ver = lambda *args, **kwargs: ("10", "10.0.0", "", "")
 import os
 import logging
@@ -287,8 +287,16 @@ class LoginWindow(ctk.CTk):
             self.status_var.set("Error de conexion")
             messagebox.showerror("Base de datos", str(exc))
         except Error as exc:
-            self.status_var.set("Error en autenticacion")
+            self.status_var.set("Error en autenticación")
             messagebox.showerror("Error", f"No se pudo validar el usuario: {exc}")
+
+    def show_login(self) -> None:
+        for child in self.winfo_children():
+            if child != self.login_container:
+                child.destroy()
+        self.password_var.set("")
+        self.login_container.grid(row=0, column=0, sticky="nsew")
+        self.username_entry.focus_set()
 
     def _open_dashboard(self, user: dict) -> None:
         self.login_container.grid_remove()
