@@ -6,7 +6,7 @@ USE moscato_db;
 -- =========================
 -- TABLA CATEGORIAS (NUEVA)
 -- =========================
--- Almacena las clasificaciones del menÃº de forma dinÃ¡mica
+-- Almacena las clasificaciones del menú de forma dinámica
 CREATE TABLE IF NOT EXISTS categorias (
     id_categoria INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) UNIQUE NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS categorias (
 -- =========================
 -- TABLA EMPLEADOS (NUEVA)
 -- =========================
--- Almacena los datos fÃ­sicos y de contacto del personal
+-- Almacena los datos fisicos y de contacto del personal
 CREATE TABLE IF NOT EXISTS empleados (
     id_empleado INT PRIMARY KEY AUTO_INCREMENT,
     nombres VARCHAR(100) NOT NULL,
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS empleados (
 -- =========================
 -- TABLA USUARIOS (MODIFICADA)
 -- =========================
--- Se eliminÃ³ "nombre" y se agregÃ³ "id_empleado" para normalizar
+-- Se eliminó "nombre" y se agregó "id_empleado" para normalizar
 CREATE TABLE IF NOT EXISTS usuarios (
     id_usuario INT PRIMARY KEY AUTO_INCREMENT,
     id_empleado INT NOT NULL,
@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS mesas (
 -- =========================
 -- TABLA PRODUCTOS (MODIFICADA)
 -- =========================
--- Se cambiÃ³ el ENUM 'categoria' por la llave forÃ¡nea 'id_categoria'
+-- Se cambió el ENUM 'categoria' por la llave foránea 'id_categoria'
 CREATE TABLE IF NOT EXISTS productos (
     id_producto INT PRIMARY KEY AUTO_INCREMENT,
     nombre VARCHAR(100) NOT NULL,
