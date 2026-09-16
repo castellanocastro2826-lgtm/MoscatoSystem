@@ -910,9 +910,26 @@ class MeseroDesignWindow(ctk.CTkFrame):
             self._on_pedidos_actualizados({"ordenes": list(grouped.values())})
 
     def _on_pedidos_actualizados(self, payload: dict) -> None:
-        self._ordenes_pendientes = payload.get("ordenes", [])
-        if self._pendientes_window is not None and self._pendientes_window.winfo_exists():
-            self._refrescar_ventana_pendientes()
+        nuevas_ordenes = payload.get("ordenes", [])
+        
+        # Evitar parpadeos: solo refrescamos la UI si hubo cambios reales en los pedidos
+        import json
+        from decimal import Decimal
+        
+        def custom_encoder(obj):
+            if isinstance(obj, Decimal):
+                return float(obj)
+            raise TypeError(f"Object not serializable: {type(obj)}")
+            
+        estado_actual = json.dumps(self._ordenes_pendientes, sort_keys=True, default=custom_encoder)
+        nuevo_estado = json.dumps(nuevas_ordenes, sort_keys=True, default=custom_encoder)
+        
+        if estado_actual != nuevo_estado:
+            self._ordenes_pendientes = nuevas_ordenes
+            if self._pendientes_window is not None and self._pendientes_window.winfo_exists():
+                # Mantener el ticket seleccionado si existe
+                ticket_actual = getattr(self, "_ticket_seleccionado_actual", None)
+                self._refrescar_ventana_pendientes(ticket_seleccionado=ticket_actual)
 
     def _refrescar_ventana_pendientes(self, ticket_seleccionado: int | None = None) -> None:
         if (
@@ -945,6 +962,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
 
         if ticket_seleccionado is None:
             ticket_seleccionado = int(self._ordenes_pendientes[0]["ticket"])
+
+        self._ticket_seleccionado_actual = ticket_seleccionado
 
         for orden in self._ordenes_pendientes:
             ticket = int(orden["ticket"])
@@ -1203,7 +1222,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if items:
             self._refrescar_ventana_pendientes(ticket)
             return
-        self._retirar_orden_pendiente(orden)
+        if orden in self._ordenes_pendientes:
+            self._ordenes_pendientes.remove(orden)
+        if getattr(self, "_ticket_seleccionado_actual", None) == int(orden.get("ticket", 0)):
+            self._ticket_seleccionado_actual = None
+        self._refrescar_ventana_pendientes(None)
         self._mostrar_notificacion(f"Pedido #{int(orden.get('id_pedido') or 0):05d} cancelado", "#8C1A11")
 
     def _abrir_modal_pago(self, ticket: int) -> None:
@@ -1319,7 +1342,15 @@ class MeseroDesignWindow(ctk.CTkFrame):
             self._pago_modal.destroy()
             self._pago_modal = None
             
-        self._refrescar_ventana_pendientes(ticket)
+        # Remover localmente para que desaparezca al instante y no genere doble parpadeo
+        if orden in self._ordenes_pendientes:
+            self._ordenes_pendientes.remove(orden)
+            
+        # Si cerramos el ticket actual, aseguramos que pierda el foco
+        if getattr(self, "_ticket_seleccionado_actual", None) == ticket:
+            self._ticket_seleccionado_actual = None
+            
+        self._refrescar_ventana_pendientes(None)
         
         self._liberar_mesa_de_orden(orden)
 
@@ -1335,7 +1366,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if not self.controlador_mesero.cancelar_pedido_pendiente(id_pedido):
             self._mostrar_notificacion("No se pudo cancelar el pedido", "#6F2C2C")
             return
-        self._retirar_orden_pendiente(orden)
+        if orden in self._ordenes_pendientes:
+            self._ordenes_pendientes.remove(orden)
+        if getattr(self, "_ticket_seleccionado_actual", None) == int(orden.get("ticket", 0)):
+            self._ticket_seleccionado_actual = None
+        self._refrescar_ventana_pendientes(None)
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cancelado", "#8C1A11")
 
 
