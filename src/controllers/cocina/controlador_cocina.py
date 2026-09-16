@@ -77,11 +77,18 @@ class ControladorCocina:
             id_pedido = fila.get("id_pedido")
             llave = f"pedido:{id_pedido}" if id_pedido not in (None, "") else f"mesa:{numero_mesa.strip().lower()}"
 
+            # Obtener timestamp de envío
+            fecha_val = fila.get("fecha_envio_cocina")
+            ts = 0.0
+            if isinstance(fecha_val, datetime):
+                ts = fecha_val.timestamp()
+                
             if llave not in grupos:
                 grupos[llave] = {
                     "id_pedido": int(fila.get("id_pedido") or 0),
                     "mesa": self._normalizar_mesa(numero_mesa),
-                    "tiempo": self._formatear_hora(fila.get("fecha_envio_cocina")),
+                    "tiempo": self._formatear_hora(fecha_val),
+                    "timestamp_envio": ts,
                     "estado": "ENVIADO A COCINA",
                     "header_bg": "#6A0E0E",
                     "estado_bg": "#8E1D1D",
@@ -94,6 +101,9 @@ class ControladorCocina:
                     "items": [],
                     "_estados": set(),
                 }
+            elif ts and (not grupos[llave].get("timestamp_envio") or ts < grupos[llave]["timestamp_envio"]):
+                grupos[llave]["timestamp_envio"] = ts
+                grupos[llave]["tiempo"] = self._formatear_hora(fecha_val)
 
             cantidad = int(fila.get("cantidad") or 1)
             nombre = str(fila.get("nombre") or "ITEM").upper()
@@ -108,10 +118,6 @@ class ControladorCocina:
 
             estado_item = self._normalizar_estado(str(fila.get("estado_item") or ""))
             grupos[llave]["_estados"].add(estado_item)
-
-            hora_envio = self._formatear_hora(fila.get("fecha_envio_cocina"))
-            if hora_envio and hora_envio < grupos[llave]["tiempo"]:
-                grupos[llave]["tiempo"] = hora_envio
 
         for grupo in grupos.values():
             estados = grupo.pop("_estados", set())
