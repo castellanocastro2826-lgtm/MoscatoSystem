@@ -696,10 +696,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
             self._mostrar_notificacion(f"Cocina confirmo pedido #{pedido_id:05d}", "#8A6317")
             self._reproducir_campanita()
         elif estado_item == "Listo":
-            texto = self._texto_notificacion_pedido_listo(pedido_id)
-            if texto is not None:
-                self._mostrar_notificacion(texto, "#2F5C36")
-                self._reproducir_campanita()
+            # Eliminada la referencia al método que no existía, mostramos texto directo
+            self._mostrar_notificacion(f"El pedido #{pedido_id:05d} esta LISTO para entregar", "#2F5C36")
+            self._reproducir_campanita()
 
     def _mover_orden_a_auditoria(self, orden: dict[str, object]) -> None:
         # Se conserva en la lista de pendientes como historial (a petición del usuario)

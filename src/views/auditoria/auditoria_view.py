@@ -485,10 +485,51 @@ class AuditoriaView:
         self._update_pagination_buttons()
 
     def _exportar_csv(self) -> None:
+        if not hasattr(self, '_registros_totales') or not self._registros_totales:
+            self.mostrar_info("No hay registros para exportar.")
+            return
+            
+        from tkinter import filedialog
+        
+        filepath = filedialog.asksaveasfilename(
+            parent=self.frame,
+            title="Exportar Auditoría",
+            defaultextension=".xlsx",
+            filetypes=[("Archivos Excel", "*.xlsx")],
+            initialfile="Auditoria_Moscato.xlsx"
+        )
+        if not filepath:
+            return
+            
         try:
-            self.mostrar_info("Exportación CSV aún no está conectada a un archivo real.")
-        except Exception:
-            pass
+            import sys
+            import os
+            # Ensure src is in path to import utils
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+            if src_dir not in sys.path:
+                sys.path.insert(0, src_dir)
+                
+            from utils.excel_export import guardar_como_excel
+            
+            filas = []
+            filas.append(["FECHA Y HORA", "USUARIO", "ACCIÓN", "TABLA AFECTADA", "DETALLES", "IP ORIGEN"])
+            for reg in self._registros_totales:
+                filas.append([
+                    str(reg.get("fecha_hora", "-")),
+                    str(reg.get("usuario", "-")),
+                    str(reg.get("accion", "-")),
+                    str(reg.get("tabla_afectada", "-")),
+                    str(reg.get("detalles", "-")),
+                    "192.168.1.12"
+                ])
+                
+            guardar_como_excel(filepath, filas)
+            self.mostrar_info(f"Datos exportados correctamente a:\n{filepath}")
+        except ImportError:
+            self.mostrar_error("Falta la librería openpyxl.\nEjecuta: pip install openpyxl")
+        except Exception as e:
+            self.mostrar_error(f"Error al exportar:\n{e}")
 
     def mostrar_error(self, mensaje: str) -> None:
         messagebox.showerror("Auditoría", mensaje)

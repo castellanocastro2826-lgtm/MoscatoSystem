@@ -354,11 +354,17 @@ class CocinaDesignWindow(ctk.CTkFrame):
 
     def actualizar_monitor(self, nuevos_pedidos: list[dict], callback_notificar) -> None:
         """Borra los tickets anteriores y renderiza los nuevos provenientes de la BD."""
-        if not hasattr(self, "_primera_carga"):
-            self._primera_carga = False
-            if nuevos_pedidos:
+        nuevos_ids = {p.get("id_pedido", 0) for p in nuevos_pedidos}
+        
+        if not hasattr(self, "_pedidos_activos_ids"):
+            # Es la primera carga, guardamos los que ya existen sin sonar
+            self._pedidos_activos_ids = nuevos_ids
+        else:
+            # Si hay algún ID nuevo que antes no estaba, significa que entró un pedido nuevo por LAN
+            if nuevos_ids - self._pedidos_activos_ids:
                 self._reproducir_campanita()
-                
+            self._pedidos_activos_ids = nuevos_ids
+
         for card in self._ticket_cards:
             card.destroy()
         self._ticket_cards.clear()
@@ -385,12 +391,13 @@ class CocinaDesignWindow(ctk.CTkFrame):
         self._reproducir_campanita()
 
     def _reproducir_campanita(self) -> None:
-        if winsound is not None:
-            winsound.MessageBeep(winsound.MB_ICONASTERISK)
-            self.after(140, lambda: winsound.MessageBeep(winsound.MB_ICONASTERISK))
-            return
-        self.bell()
-        self.after(160, self.bell)
+        try:
+            import winsound
+            # Sonido de entrada de comanda en cocina (Doble Ding rápido y agudo)
+            winsound.Beep(1200, 150)
+            winsound.Beep(1200, 250)
+        except Exception:
+            self.bell()
 
     def _mostrar_notificacion(self, texto: str, color: str = "#2F5C36") -> None:
         if self._notificacion_label is None or not self._notificacion_label.winfo_exists():
