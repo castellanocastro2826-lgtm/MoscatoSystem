@@ -1,6 +1,7 @@
 ﻿import platform
 platform.win32_ver = lambda *args, **kwargs: ("10", "10.0.0", "", "")
 import os
+import logging
 import tkinter as tk
 from tkinter import messagebox
 
