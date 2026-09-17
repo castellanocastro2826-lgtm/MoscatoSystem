@@ -713,11 +713,12 @@ class ModeloMesero:
             with connection.cursor() as cursor:
 
                 cursor.execute(
-
                     "UPDATE pedidos SET estado_pedido = 'Cancelado' WHERE id_pedido = %s",
-
                     (id_pedido,)
-
+                )
+                cursor.execute(
+                    "UPDATE detalle_pedido SET estado_item = 'Cancelado' WHERE id_pedido = %s",
+                    (id_pedido,)
                 )
 
             connection.commit()

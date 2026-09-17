@@ -93,7 +93,11 @@ class ControladorMesero:
         return self.modelo.eliminar_item_pendiente(id_detalle)
 
     def cancelar_pedido_pendiente(self, id_pedido: int) -> bool:
-        return self.modelo.cancelar_pedido_pendiente(id_pedido)
+        exito = self.modelo.cancelar_pedido_pendiente(id_pedido)
+        if exito:
+            from src.utils.event_bus import event_bus
+            event_bus.publish("pedido.cancelado", {"id_pedido": id_pedido})
+        return exito
 
     def consultar_ticket_por_id(self, id_pedido: int) -> int | None:
         return self.modelo.consultar_ticket_por_id(id_pedido)
