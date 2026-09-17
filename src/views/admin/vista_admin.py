@@ -590,8 +590,9 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
 
     @staticmethod
     def _store_menu_image(source_path: str) -> str:
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-        target_dir = os.path.join(project_root, "src", "assets", "menu")
+        from src.utils.paths import get_project_root, get_assets_dir
+        project_root = get_project_root()
+        target_dir = os.path.join(get_assets_dir(), "menu")
         os.makedirs(target_dir, exist_ok=True)
         filename = os.path.basename(source_path)
         stem, extension = os.path.splitext(filename)

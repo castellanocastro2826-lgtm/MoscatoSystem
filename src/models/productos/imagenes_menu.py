@@ -3,10 +3,10 @@ from __future__ import annotations
 import os
 import re
 import shutil
+from src.utils.paths import get_project_root, get_assets_dir
 
-
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-MENU_IMAGE_DIR = os.path.join(PROJECT_ROOT, "src", "assets", "menu")
+PROJECT_ROOT = get_project_root()
+MENU_IMAGE_DIR = os.path.join(get_assets_dir(), "menu")
 
 
 def _slug(texto: str) -> str:

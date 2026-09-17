@@ -1,12 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_data_files
 
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=collect_data_files('customtkinter') + collect_data_files('mysql.connector') + [('moscato.sql', '.')],
+    hiddenimports=['openpyxl', 'mysql.connector', 'mysql.connector.plugins.mysql_native_password', 'mysql.connector.plugins.caching_sha2_password'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
