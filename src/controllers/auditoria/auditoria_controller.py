@@ -11,6 +11,12 @@ class AuditoriaController:
         self.modelo = modelo
         self.vista = vista
         self.vista.configurar_busqueda(self.buscar)
+        if hasattr(self.vista, "after"):
+            self.vista.after(150, self._carga_inicial_async)
+        else:
+            self._carga_inicial_async()
+
+    def _carga_inicial_async(self):
         self.cargar_usuarios()
         self.buscar()
 

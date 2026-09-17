@@ -86,17 +86,16 @@ class AuditoriaView:
 
         self.export_btn = ctk.CTkButton(
             header,
-            text="Exportar CSV",
-            width=132,
-            height=34,
+            text="📥 Exportar Excel",
+            width=140,
+            height=32,
             corner_radius=6,
-            fg_color="#2A2D2F",
-            hover_color="#3A3E42",
-            border_width=1,
-            border_color="#4D4E52",
-            text_color=self.COLORS["text_primary"],
-            font=("Segoe UI", 11, "bold"),
-            command=self._exportar_csv,
+            fg_color="#2EA44F",
+            hover_color="#268841",
+            border_width=0,
+            text_color="#FFFFFF",
+            font=("Segoe UI", 12, "bold"),
+            command=self._exportar_excel,
         )
         self.export_btn.grid(row=0, column=1, sticky="e", pady=(10, 0))
 
@@ -484,7 +483,7 @@ class AuditoriaView:
 
         self._update_pagination_buttons()
 
-    def _exportar_csv(self) -> None:
+    def _exportar_excel(self) -> None:
         if not hasattr(self, '_registros_totales') or not self._registros_totales:
             self.mostrar_info("No hay registros para exportar.")
             return

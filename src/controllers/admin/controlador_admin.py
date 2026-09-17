@@ -34,6 +34,13 @@ class ControladorAdmin:
         self._categorias: list[dict[str, Any]] = []
 
         self.vista.controller = self
+        
+        if hasattr(self.vista, "after"):
+            self.vista.after(150, self._carga_inicial_async)
+        else:
+            self._carga_inicial_async()
+
+    def _carga_inicial_async(self) -> None:
         self.cargar_empleados()
         self.cargar_menu()
 

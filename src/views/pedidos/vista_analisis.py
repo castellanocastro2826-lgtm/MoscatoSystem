@@ -71,9 +71,9 @@ class AnalisisView:
         ).grid(row=0, column=0, padx=(0, 10))
         
         ctk.CTkButton(
-            btn_frame, text="📥 Exportar Reporte", width=140, height=36,
-            fg_color=self.COLORS["accent"], hover_color=self.COLORS["accent_hover"],
-            text_color=self.COLORS["text_primary"], font=("Segoe UI", 12, "bold"),
+            btn_frame, text="📥 Exportar Excel", width=140, height=32,
+            fg_color="#2EA44F", hover_color="#268841",
+            text_color="#FFFFFF", font=("Segoe UI", 12, "bold"),
             command=self._exportar_reporte
         ).grid(row=0, column=1)
 
