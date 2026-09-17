@@ -323,6 +323,7 @@ class MoscatoApp(ctk.CTk):
         if rol == "administrador":
             vista = UnifiedDashboardWindow(self, usuario=nombre_real, id_usuario=id_usuario)
             vista.grid(row=0, column=0, sticky="nsew")
+            self.update_idletasks()
             ControladorAdmin(vista)
         elif rol == "cocinero":
             modelo = ModeloCocina()

@@ -110,6 +110,17 @@ class RegistroPedidosView:
             text_color=self.COLORS["text_warm"], font=(self.FONT, 12, "bold"),
             command=self._next_day
         ).grid(row=0, column=2, padx=2)
+        
+        # Export Button
+        ctk.CTkButton(
+            date_block, 
+            text="📥 Exportar Excel", 
+            width=140, height=32,
+            fg_color="#2EA44F", 
+            hover_color="#268841",
+            text_color="#FFFFFF", font=(self.FONT, 12, "bold"),
+            command=self._export_excel
+        ).grid(row=0, column=1, padx=(15, 0))
 
     def _prev_day(self):
         from datetime import timedelta
@@ -125,6 +136,11 @@ class RegistroPedidosView:
         self.lbl_date.configure(text=f"Fecha: {self._current_date.strftime('%Y-%m-%d')}")
         if self.on_date_change:
             self.on_date_change(self._current_date)
+
+
+    def _export_excel(self):
+        if hasattr(self, "on_export_excel") and self.on_export_excel:
+            self.on_export_excel(self._current_date)
 
     def _build_table_area(self):
         table_card = ctk.CTkFrame(

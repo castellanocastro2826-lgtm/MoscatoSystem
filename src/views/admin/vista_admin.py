@@ -73,7 +73,7 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
 
         self._build_sidebar()
-        self._show_menu()
+        self._show_registro_pedidos()
 
     def _build_sidebar(self):
         self.sidebar = ctk.CTkFrame(
@@ -108,10 +108,10 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
 
         self.nav_buttons = {}
         nav_items = [
-            ("registro_pedidos", "Registro de Pedidos", False, self._show_registro_pedidos),
+            ("registro_pedidos", "Registro de Pedidos", True, self._show_registro_pedidos),
             ("orders", "Análisis de Producto", False, self._show_analisis),
             ("kitchen", "Auditoría de Sistema", False, self._show_auditoria),
-            ("categories", "Gestion de Menu", True, self._show_menu),
+            ("categories", "Gestion de Menu", False, self._show_menu),
             ("users", "Gestion de Usuarios", False, self._show_users),
         ]
 
@@ -173,14 +173,14 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
         self._replace_main_panel()
         self._build_menu_panel()
         if self.controller and hasattr(self.controller, "cargar_menu"):
-            self.controller.cargar_menu()
+            self.after(150, self.controller.cargar_menu)
 
     def _show_users(self) -> None:
         self._activate_nav("users")
         self._replace_main_panel()
         self._build_main_panel()
         if self.controller and hasattr(self.controller, "cargar_empleados"):
-            self.controller.cargar_empleados()
+            self.after(150, self.controller.cargar_empleados)
 
     def _show_auditoria(self) -> None:
         self._activate_nav("kitchen")
@@ -210,7 +210,7 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
 
         vista = RegistroPedidosView(panel)
         modelo = RegistroPedidosModel()
-        RegistroPedidosController(modelo, vista)
+        self.current_panel_controller = RegistroPedidosController(modelo, vista)
 
     def _build_analisis_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
@@ -225,7 +225,7 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
 
         vista_analisis = AnalisisView(panel)
         modelo_analisis = AnalisisModel()
-        AnalisisController(modelo_analisis, vista_analisis)
+        self.current_panel_controller = AnalisisController(modelo_analisis, vista_analisis)
 
     def _build_auditoria_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
@@ -240,7 +240,7 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
 
         vista_auditoria = AuditoriaView(panel)
         modelo_auditoria = AuditoriaModel()
-        AuditoriaController(modelo_auditoria, vista_auditoria)
+        self.current_panel_controller = AuditoriaController(modelo_auditoria, vista_auditoria)
 
     def _build_menu_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)

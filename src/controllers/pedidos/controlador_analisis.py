@@ -5,7 +5,10 @@ class AnalisisController:
         self.model = model
         self.view = view
         
-        self.cargar_datos()
+        if hasattr(self.view, "after"):
+            self.view.after(150, self.cargar_datos)
+        else:
+            self.cargar_datos()
 
     def cargar_datos(self):
         data = self.model.get_dashboard_data()
