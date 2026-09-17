@@ -34,6 +34,21 @@ class CocinaDesignWindow(ctk.CTkFrame):
         self.controlador = None
 
         self._build_layout()
+        self._update_timers_loop()
+
+    def _update_timers_loop(self) -> None:
+        import time
+        ahora = time.time()
+        for card in getattr(self, "_ticket_cards", []):
+            if hasattr(card, "time_label") and hasattr(card, "ts_envio"):
+                ts = card.ts_envio
+                if ts > 0:
+                    delta = int(ahora - ts)
+                    if delta < 0: delta = 0
+                    minutos = delta // 60
+                    segundos = delta % 60
+                    card.time_label.configure(text=f" {minutos:02d}:{segundos:02d}")
+        self.after(1000, self._update_timers_loop)
 
     def _build_layout(self) -> None:
         self.grid_columnconfigure(0, weight=1)
@@ -282,7 +297,12 @@ class CocinaDesignWindow(ctk.CTkFrame):
         time_wrap = ctk.CTkFrame(head, fg_color="transparent")
         time_wrap.grid(row=0, column=1, rowspan=2, sticky="ne", padx=8, pady=6)
         ctk.CTkLabel(time_wrap, text="", image=self._make_icon("clock", "#F4EBD0", size=12), fg_color="transparent").pack(side="left")
-        ctk.CTkLabel(time_wrap, text=f" {data['tiempo']}", text_color="#F4EBD0", font=("Segoe UI", 10, "bold")).pack(side="left")
+        
+        # Guardamos el label y el timestamp para actualizar el cronometro despues
+        time_lbl = ctk.CTkLabel(time_wrap, text=f" 00:00", text_color="#F4EBD0", font=("Segoe UI", 12, "bold"))
+        time_lbl.pack(side="left")
+        card.time_label = time_lbl
+        card.ts_envio = data.get("timestamp_envio", 0.0)
 
         ctk.CTkLabel(
             head,
@@ -322,11 +342,11 @@ class CocinaDesignWindow(ctk.CTkFrame):
 
             if detalle:
                 ctk.CTkLabel(
-                    dishes,
-                    text=detalle,
-                    text_color="#F19B95",
-                    font=("Segoe UI", 12, "italic"),
-                    wraplength=200,
+                    row,
+                    text=f"   {detalle}",
+                    text_color="#A4A4A4",
+                    font=("Segoe UI", 11, "italic"),
+                    wraplength=220,
                     justify="left",
                 ).pack(side="top", anchor="w", expand=False, pady=(0, 6))
 
@@ -353,17 +373,24 @@ class CocinaDesignWindow(ctk.CTkFrame):
         return card
 
     def actualizar_monitor(self, nuevos_pedidos: list[dict], callback_notificar) -> None:
-        """Borra los tickets anteriores y renderiza los nuevos provenientes de la BD."""
+        """Compara con el estado anterior y solo borra/renderiza los tickets si hubo un cambio."""
+        import json
+        estado_actual = json.dumps(getattr(self, "_last_pedidos", []), sort_keys=True)
+        nuevo_estado = json.dumps(nuevos_pedidos, sort_keys=True)
+
         nuevos_ids = {p.get("id_pedido", 0) for p in nuevos_pedidos}
         
         if not hasattr(self, "_pedidos_activos_ids"):
-            # Es la primera carga, guardamos los que ya existen sin sonar
             self._pedidos_activos_ids = nuevos_ids
         else:
-            # Si hay algún ID nuevo que antes no estaba, significa que entró un pedido nuevo por LAN
             if nuevos_ids - self._pedidos_activos_ids:
                 self._reproducir_campanita()
             self._pedidos_activos_ids = nuevos_ids
+
+        if estado_actual == nuevo_estado:
+            return  # No hay cambios estructurales, no redibujamos para no romper el reloj ni parpadear
+
+        self._last_pedidos = nuevos_pedidos
 
         for card in self._ticket_cards:
             card.destroy()
