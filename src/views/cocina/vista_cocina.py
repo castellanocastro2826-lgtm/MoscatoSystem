@@ -185,80 +185,28 @@ class CocinaDesignWindow(ctk.CTkFrame):
                 label.configure(text=valor)
 
     def _build_board(self, parent: tk.Misc) -> None:
-        host = ctk.CTkFrame(parent, fg_color="#180C0D", corner_radius=0)
-        host.grid(row=2, column=0, columnspan=3, sticky="nsew", padx=10, pady=(0, 10))
-        host.grid_columnconfigure(0, weight=1)
-        host.grid_rowconfigure(0, weight=1)
-
-        # Canvas ocupa todo el espacio del host de forma limpia
-        canvas = tk.Canvas(host, bg="#180C0D", bd=0, highlightthickness=0)
-        canvas.grid(row=0, column=0, sticky="nsew")
-
-        scrollbar = tk.Scrollbar(
-            host,
-            orient="vertical",
-            command=canvas.yview,
-            troughcolor="#180C0D",
-            bg="#16181A",
-            activebackground="#2A2324",
-            width=5,
-            highlightthickness=0,
-            bd=0,
-            relief="flat",
+        self.scroll_frame = ctk.CTkScrollableFrame(
+            parent,
+            fg_color="#180C0D",
+            corner_radius=0,
+            scrollbar_button_color="#16181A",
+            scrollbar_button_hover_color="#2A2324",
         )
-        scrollbar.grid(row=0, column=1, sticky="ns")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        content = ctk.CTkFrame(canvas, fg_color="#180C0D", corner_radius=0)
-        self._board_window_id = canvas.create_window((0, 0), window=content, anchor="nw")
-
-        self._board_canvas = canvas
-        self._board_content = content
-        self.scroll_frame = content
-        self._board_host = host
-
+        self.scroll_frame.grid(row=2, column=0, columnspan=3, sticky="nsew", padx=10, pady=(0, 10))
         self.scroll_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="columna_estricta")
 
-        content.bind("<Configure>", self._update_board_scrollregion)
-        canvas.bind("<Configure>", self._on_board_canvas_configure)
-        host.bind("<Configure>", self._schedule_board_layout)
-        canvas.bind_all("<MouseWheel>", self._on_board_mousewheel)
+        self._board_content = self.scroll_frame
         self._ticket_cards.clear()
         self.after_idle(self._layout_board_cards)
 
     def _layout_board_cards(self) -> None:
-        self._board_layout_pending = False
-        if not self.scroll_frame or not self._board_canvas:
+        if not self.scroll_frame:
             return
 
         for index, card in enumerate(self._ticket_cards):
             row_calc = index // 3
             col_calc = index % 3
-            card.grid_forget()
             card.grid(row=row_calc, column=col_calc, padx=15, pady=15, sticky="nsew")
-            card.configure(width=300, height=360)
-
-        self.scroll_frame.grid_columnconfigure((0, 1, 2), weight=1, uniform="columna_estricta")
-        self._update_board_scrollregion()
-
-    def _schedule_board_layout(self, _event: tk.Event | None = None) -> None:
-        if self._board_layout_pending:
-            return
-        self._board_layout_pending = True
-        self.after_idle(self._layout_board_cards)
-
-    def _on_board_canvas_configure(self, event: tk.Event) -> None:
-        if self._board_canvas is not None and self._board_window_id is not None:
-            self._board_canvas.itemconfigure(self._board_window_id, width=event.width)
-        self._schedule_board_layout()
-
-    def _update_board_scrollregion(self, _event: tk.Event | None = None) -> None:
-        if self._board_canvas is not None:
-            self._board_canvas.configure(scrollregion=self._board_canvas.bbox("all"))
-
-    def _on_board_mousewheel(self, event: tk.Event) -> None:
-        if self._board_canvas is not None and self.winfo_exists():
-            self._board_canvas.yview_scroll(int(-event.delta / 120), "units")
 
     def _kitchen_ticket(self, parent: tk.Misc, data: dict, callback_notificar) -> ctk.CTkFrame:
         card = ctk.CTkFrame(
@@ -267,10 +215,7 @@ class CocinaDesignWindow(ctk.CTkFrame):
             border_color=data["borde"],
             border_width=1,
             corner_radius=8,
-            width=300,
-            height=360,
         )
-        card.grid_propagate(False)
 
         header_color = data.get("header_bg", "#4B360F")
         head = ctk.CTkFrame(card, fg_color=header_color, corner_radius=6)
@@ -315,10 +260,10 @@ class CocinaDesignWindow(ctk.CTkFrame):
             pady=2,
         ).grid(row=2, column=1, sticky="e", padx=8, pady=(0, 6))
 
-        body = ctk.CTkFrame(card, fg_color="transparent")
+        body = tk.Frame(card, bg="#2A1718")
         body.pack(fill="both", expand=True, padx=8, pady=(8, 6))
 
-        dishes = ctk.CTkFrame(body, fg_color="transparent")
+        dishes = tk.Frame(body, bg="#2A1718")
         dishes.pack(side="top", anchor="w", fill="x", expand=False)
 
         for item in data["items"]:
@@ -326,9 +271,9 @@ class CocinaDesignWindow(ctk.CTkFrame):
             name = str(item.get("nombre") or "ITEM")
             detalle = str(item.get("detalle") or "").strip()
 
-            row = ctk.CTkFrame(dishes, fg_color="transparent")
+            row = tk.Frame(dishes, bg="#2A1718")
             row.pack(side="top", anchor="w", fill="x", expand=False, pady=(0, 4))
-            ctk.CTkLabel(row, text=qty, text_color="#FF9C00", font=("Segoe UI", 22, "bold")).pack(
+            ctk.CTkLabel(row, text=qty, text_color="#FF9C00", font=("Segoe UI", 22, "bold"), fg_color="#2A1718").pack(
                 side="left", anchor="w", expand=False
             )
             ctk.CTkLabel(
@@ -338,6 +283,7 @@ class CocinaDesignWindow(ctk.CTkFrame):
                 font=("Segoe UI", 14, "bold"),
                 wraplength=220,
                 justify="left",
+                fg_color="#2A1718"
             ).pack(side="left", anchor="w", fill="x", expand=False)
 
             if detalle:
@@ -348,13 +294,14 @@ class CocinaDesignWindow(ctk.CTkFrame):
                     font=("Segoe UI", 11, "italic"),
                     wraplength=220,
                     justify="left",
+                    fg_color="#2A1718"
                 ).pack(side="top", anchor="w", expand=False, pady=(0, 6))
 
-            ctk.CTkFrame(dishes, fg_color="#5C3A3A", height=1, corner_radius=0).pack(
+            tk.Frame(dishes, bg="#5C3A3A", height=1).pack(
                 side="top", anchor="w", fill="x", expand=False, pady=(2, 4)
             )
 
-        ctk.CTkFrame(body, fg_color="transparent").pack(side="top", fill="both", expand=True)
+        tk.Frame(body, bg="#2A1718").pack(side="top", fill="both", expand=True)
 
         ctk.CTkButton(
             card,
@@ -375,8 +322,14 @@ class CocinaDesignWindow(ctk.CTkFrame):
     def actualizar_monitor(self, nuevos_pedidos: list[dict], callback_notificar) -> None:
         """Compara con el estado anterior y solo borra/renderiza los tickets si hubo un cambio."""
         import json
-        estado_actual = json.dumps(getattr(self, "_last_pedidos", []), sort_keys=True)
-        nuevo_estado = json.dumps(nuevos_pedidos, sort_keys=True)
+        def _get_sort_key(p):
+            return str(p.get("id_pedido", p.get("mesa", "")))
+            
+        last_pedidos_sorted = sorted(getattr(self, "_last_pedidos", []), key=_get_sort_key)
+        nuevos_pedidos_sorted = sorted(nuevos_pedidos, key=_get_sort_key)
+        
+        estado_actual = json.dumps(last_pedidos_sorted, sort_keys=True)
+        nuevo_estado = json.dumps(nuevos_pedidos_sorted, sort_keys=True)
 
         nuevos_ids = {p.get("id_pedido", 0) for p in nuevos_pedidos}
         

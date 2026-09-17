@@ -27,11 +27,33 @@ class ControladorCocina:
         event_bus.subscribe("pedido.cancelado", self._evento_pedido_cancelado)
 
     def actualizar_pantalla(self) -> None:
-        """Consulta pedidos reales y actualiza la vista."""
-        pedidos_reales = self.modelo.obtener_pedidos_activos()
-        pedidos_reales = [p for p in pedidos_reales if p.get("id_pedido") not in self._pedidos_ocultos]
-        pedidos_activos, tiempo_promedio, en_prep, pendientes = self._calcular_estadisticas(pedidos_reales)
-        datos_mapeados = self._agrupar_items_a_tarjetas(pedidos_reales)
+        """Consulta pedidos reales en segundo plano y actualiza la vista."""
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+            
+        def _fetch_and_update():
+            try:
+                pedidos_reales = self.modelo.obtener_pedidos_activos()
+                pedidos_reales = [p for p in pedidos_reales if p.get("id_pedido") not in self._pedidos_ocultos]
+                pedidos_activos, tiempo_promedio, en_prep, pendientes = self._calcular_estadisticas(pedidos_reales)
+                datos_mapeados = self._agrupar_items_a_tarjetas(pedidos_reales)
+                
+                if getattr(self.vista, "winfo_exists", lambda: False)():
+                    self.vista.after(0, lambda: self._apply_update(
+                        datos_mapeados, pedidos_activos, tiempo_promedio, en_prep, pendientes
+                    ))
+            except Exception:
+                pass
+            finally:
+                if getattr(self.vista, "winfo_exists", lambda: False)():
+                    self.vista.after(0, self._programar_refresco)
+
+        import threading
+        threading.Thread(target=_fetch_and_update, daemon=True).start()
+
+    def _apply_update(self, datos_mapeados, pedidos_activos, tiempo_promedio, en_prep, pendientes) -> None:
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
         self.vista.actualizar_monitor(datos_mapeados, self.al_hacer_clic_en_listo)
         self.vista.actualizar_estadisticas(
             pedidos_activos=pedidos_activos,
@@ -39,7 +61,6 @@ class ControladorCocina:
             en_prep=en_prep,
             pendientes=pendientes,
         )
-        self._programar_refresco()
 
     def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
         """Avanza el estado del pedido completo y refresca la pantalla."""
