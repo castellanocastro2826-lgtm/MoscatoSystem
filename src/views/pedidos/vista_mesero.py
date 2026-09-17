@@ -620,10 +620,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
         orden = {
             "ticket": ticket,
             "mesa": mesa_str,
-            "estado": "Enviado a cocina",
+            "estado": "En cocina",
             "items": [dict(item) for item in items_actuales],
             "id_pedido": 0,
             "pagado": pagado_bool,
+            "metodo_pago": "",
         }
         if self._pedido_actual_controller:
             id_edicion = self._pedido_actual_controller.obtener_id_pedido_en_edicion()
@@ -856,7 +857,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
 
     def _marcar_orden_en_espera(self, ticket: int) -> None:
         orden = self._buscar_orden(ticket)
-        if orden is None or str(orden.get("estado")) != "Enviado a cocina":
+        if orden is None or str(orden.get("estado")) != "En cocina":
             return
         orden["estado"] = "En espera"
         self._refrescar_ventana_pendientes()
@@ -922,10 +923,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
                     elif not mesa_db: mesa_db = "Mesa X"
                     
                     grouped[t] = {
-                        "ticket": t,
+                        "ticket": row.get("ticket_numero") or t,
                         "mesa": mesa_db,
                         "estado": row.get("estado_pedido", ""),
                         "pagado": bool(row.get("pagado")),
+                        "metodo_pago": row.get("metodo_pago") or "",
                         "id_pedido": row.get("id_pedido"),
                         "items": []
                     }
@@ -972,6 +974,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
         ):
             return
 
+        scroll_pos = None
+        if hasattr(self._pendientes_list_container, "_parent_canvas"):
+            scroll_pos = self._pendientes_list_container._parent_canvas.yview()
+            
         for widget in self._pendientes_list_container.winfo_children():
             widget.destroy()
         for widget in self._pendientes_detail_container.winfo_children():
@@ -1163,6 +1169,10 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 state="normal",
                 command=lambda t=ticket_seleccionado: self._abrir_modal_pago(t),
             ).pack(side="left")
+
+        if scroll_pos is not None and hasattr(self._pendientes_list_container, "_parent_canvas"):
+            self._pendientes_list_container.update_idletasks()
+            self._pendientes_list_container._parent_canvas.yview_moveto(scroll_pos[0])
 
     def _actualizar_estado_pedido_desde_cocina(self, ticket: int, estado: str) -> None:
         orden = self._buscar_orden(ticket)
@@ -1378,20 +1388,16 @@ class MeseroDesignWindow(ctk.CTkFrame):
         orden["estado"] = "Servido"
         orden["pagado"] = True
         orden["metodo_pago"] = metodo_pago
+        for item in orden.get("items", []):
+            item["estado_item"] = "Servido"
+            
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cerrado y pagado", "#2F5C36")
         if hasattr(self, "_pago_modal") and self._pago_modal is not None and self._pago_modal.winfo_exists():
             self._pago_modal.destroy()
             self._pago_modal = None
             
-        # Remover localmente para que desaparezca al instante y no genere doble parpadeo
-        if orden in self._ordenes_pendientes:
-            self._ordenes_pendientes.remove(orden)
-            
-        # Si cerramos el ticket actual, aseguramos que pierda el foco
-        if getattr(self, "_ticket_seleccionado_actual", None) == ticket:
-            self._ticket_seleccionado_actual = None
-            
-        self._refrescar_ventana_pendientes(None)
+        # Mantener la orden localmente para que se vea como "Servido"
+        self._refrescar_ventana_pendientes(ticket)
         
         self._liberar_mesa_de_orden(orden)
 
@@ -1407,7 +1413,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if not self.controlador_mesero.cancelar_pedido_pendiente(id_pedido):
             self._mostrar_notificacion("No se pudo cancelar el pedido", "#6F2C2C")
             return
-        self._retirar_orden_pendiente(orden)
+        orden["estado"] = "Cancelado"
+        self._refrescar_ventana_pendientes(ticket)
+        self._liberar_mesa_de_orden(orden)
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cancelado", "#8C1A11")
         
         from src.core.event_bus import event_bus

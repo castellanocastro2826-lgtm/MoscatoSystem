@@ -61,10 +61,11 @@ class ControladorMesero:
                         if not t: continue
                         if t not in grouped:
                             grouped[t] = {
-                                "ticket": t,
+                                "ticket": row.get("ticket_numero") or t,
                                 "mesa": row.get("mesa", "Mesa X"),
                                 "estado": row.get("estado_pedido", ""),
                                 "pagado": bool(row.get("pagado")),
+                                "metodo_pago": row.get("metodo_pago") or "",
                                 "id_pedido": row.get("id_pedido"),
                                 "items": []
                             }
