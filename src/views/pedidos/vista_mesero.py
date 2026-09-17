@@ -28,7 +28,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
 
     SYNC_PEDIDOS_MS = 3000
 
-    def __init__(self, master: tk.Misc, usuario: str, mesa_actual: str = "Mesa 1") -> None:
+    def __init__(self, master: tk.Misc, usuario: str, mesa_actual: str = "Seleccione Mesa") -> None:
         super().__init__(master)
         self.parent = master
         self.configure(fg_color="#141517")
@@ -578,6 +578,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
         precio = float(producto.get("precio", 0.0) or 0.0)
         categoria_db = str(producto.get("categoria_db", "Comida"))
         id_item = str(producto.get("id_producto") or f"{categoria_db}:{nombre.lower()}")
+        tipo_pedido = self._pedido_actual_view.tipo_pedido_var.get() if self._pedido_actual_view else "Mesa"
+        if tipo_pedido == "Mesa" and self._mesa_seleccionada_id is None:
+            self._mostrar_notificacion("Mesa no seleccionada. Por favor, seleccione una mesa libre primero.", "#6F2C2C")
+            return
+            
         self._pedido_actual_controller.agregar_item(
             id_item=id_item,
             nombre=nombre,
@@ -585,7 +590,6 @@ class MeseroDesignWindow(ctk.CTkFrame):
             cantidad=1,
             categoria_db=categoria_db,
         )
-        tipo_pedido = self._pedido_actual_view.tipo_pedido_var.get() if self._pedido_actual_view else "Mesa"
         if era_primer_item and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
             if tipo_pedido == "Mesa":
                 self._mesas_controller.registrar_primer_item(self._mesa_seleccionada_id)
@@ -649,14 +653,22 @@ class MeseroDesignWindow(ctk.CTkFrame):
         self._reproducir_campanita()
 
         if tipo_pedido_ui == "Mesa" and self._mesa_seleccionada_id is not None and self._mesas_controller is not None:
-            self._mesas_controller.ocupar_mesa(self._mesa_seleccionada_id)
+            self._mesas_controller._cambiar_estado_mesa(self._mesa_seleccionada_id, "Atencion")
 
         self.after(5000, lambda t=ticket: self._marcar_orden_en_espera(t))
         self._ticket_numero += 1
         self._actualizar_label_ticket()
         self._refrescar_ventana_pendientes()
+        self._mesa_seleccionada_id = None
+        self.mesa_actual = "Seleccione Mesa"
+        if self._pedido_actual_view:
+            self._pedido_actual_view._mesa_label.configure(text="Seleccione Mesa")
+        if self._mesa_badge_label is not None:
+            self._mesa_badge_label.configure(text="Seleccione Mesa")
+
         if self._pedido_actual_controller is not None:
             self._pedido_actual_controller.limpiar()
+            
         return True
 
     def _guardar_orden_en_bd(self, orden: dict[str, object]) -> int | None:
@@ -682,7 +694,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
                     numero = self._extraer_numero_mesa(mesa_texto)
                     if numero is not None:
                         for m_id, m_data in self._mesas_por_id.items():
-                            if m_data.get("numero_mesa") == numero:
+                            try:
+                                m_num = int(m_data.get("numero_mesa") or 0)
+                            except ValueError:
+                                m_num = 0
+                            if m_num == numero:
                                 nuevo_estado = "Atencion" if estado_item == "En preparación" else "Ocupada"
                                 self._mesas_controller._cambiar_estado_mesa(m_id, nuevo_estado)
                                 break
@@ -694,14 +710,9 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 self._refrescar_ventana_pendientes(int(orden.get("ticket") or 0))
 
         if estado_item == "En preparación":
-            self._mostrar_notificacion(f"Cocina confirmo pedido #{pedido_id:05d}", "#8A6317")
+            self._mostrar_notificacion(f"El pedido #{pedido_id:05d} ya entro en preparacion", "#8A6317")
             self._reproducir_campanita()
         elif estado_item == "Listo":
-            texto = self._texto_notificacion_pedido_listo(pedido_id)
-            if texto is not None:
-                self._mostrar_notificacion(texto, "#2F5C36")
-                self._reproducir_campanita()
-            # Eliminada la referencia al método que no existía, mostramos texto directo
             self._mostrar_notificacion(f"El pedido #{pedido_id:05d} esta LISTO para entregar", "#2F5C36")
             self._reproducir_campanita()
 
@@ -744,14 +755,16 @@ class MeseroDesignWindow(ctk.CTkFrame):
             if id_mesa > 0:
                 self._mesas_por_id[id_mesa] = mesa
 
-        mesa_inicial = mesas_por_numero.get(1)
-        if mesa_inicial is not None:
-            self._on_mesa_seleccionada_event(
-                {
-                    "id_mesa": mesa_inicial.get("id_mesa"),
-                    "numero_mesa": mesa_inicial.get("numero_mesa"),
-                }
-            )
+        # No auto-seleccionar mesa 1 para forzar al usuario a elegir una mesa libre
+        # mesa_inicial = mesas_por_numero.get(1)
+        # if mesa_inicial is not None:
+        #     self._on_mesa_seleccionada_event(
+        #         {
+        #             "id_mesa": mesa_inicial.get("id_mesa"),
+        #             "numero_mesa": mesa_inicial.get("numero_mesa"),
+        #         }
+        #     )
+
 
     def _on_pedido_actual_items_cambiados(self, evento: dict[str, object]) -> None:
         tiene_items = bool(evento.get("tiene_items", False))
@@ -766,11 +779,26 @@ class MeseroDesignWindow(ctk.CTkFrame):
         id_mesa_int = int(id_mesa)
         mesa_anterior = self._mesa_seleccionada_id
         
+        if self._mesas_view is not None:
+            estado_nueva = self._mesas_view._estado_mesas.get(id_mesa_int, "Libre")
+            if str(estado_nueva).strip().lower() != "libre" and id_mesa_int != mesa_anterior:
+                self._mostrar_notificacion("Mesa ocupada. Cierre el pedido antes de tomar otro.", "#8A6317")
+                return
+
         if mesa_anterior is not None and mesa_anterior != id_mesa_int:
             if self._mesas_controller is not None:
                 estado_anterior = self._mesas_view._estado_mesas.get(mesa_anterior, "Libre") if self._mesas_view else "Libre"
                 if str(estado_anterior).strip().lower() in ["atencion", "atención"]:
-                    self._mesas_controller.liberar_mesa(mesa_anterior)
+                    mesa_ant_data = self._mesas_por_id.get(mesa_anterior, {})
+                    num_ant = mesa_ant_data.get("numero_mesa", mesa_anterior)
+                    def _coincide_mesa(m_val: object, m_num: int) -> bool:
+                        if isinstance(m_val, int): return m_val == m_num
+                        texto = str(m_val).upper()
+                        return f"MESA {m_num}" in texto or texto == str(m_num)
+                        
+                    tiene_orden = any(_coincide_mesa(o.get("mesa"), num_ant) and str(o.get("estado", "")).strip().lower() not in ["servido", "cancelado"] for o in self._ordenes_pendientes)
+                    if not tiene_orden:
+                        self._mesas_controller.liberar_mesa(mesa_anterior)
 
         self._mesa_seleccionada_id = id_mesa_int
         if self._mesas_controller is not None:
@@ -889,9 +917,13 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 t = row.get("id_pedido")
                 if not t: continue
                 if t not in grouped:
+                    mesa_db = str(row.get("mesa", ""))
+                    if mesa_db.isdigit(): mesa_db = f"Mesa {mesa_db}"
+                    elif not mesa_db: mesa_db = "Mesa X"
+                    
                     grouped[t] = {
                         "ticket": t,
-                        "mesa": row.get("mesa", "Mesa X"),
+                        "mesa": mesa_db,
                         "estado": row.get("estado_pedido", ""),
                         "pagado": bool(row.get("pagado")),
                         "id_pedido": row.get("id_pedido"),
@@ -952,10 +984,14 @@ class MeseroDesignWindow(ctk.CTkFrame):
             es_listo = estado == "Listo"
             es_servido = estado == "Servido"
             es_prep = estado == "En preparación"
+            es_cancelado = estado == "Cancelado"
             es_seleccionado = (ticket == ticket_seleccionado)
             pagado = bool(orden.get("pagado", False))
             
-            if es_servido:
+            if es_cancelado:
+                fg_color = "#333333" if es_seleccionado else "#1A1A1A"
+                hover_color = "#444444" if es_seleccionado else "#222222"
+            elif es_servido:
                 fg_color = "#2E2A2B" if es_seleccionado else "#1B1718"
                 hover_color = "#3C3839" if es_seleccionado else "#2E2A2B"
             elif es_listo:
@@ -1052,8 +1088,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
                     justify="left",
                 ).grid(row=1, column=0, columnspan=2, sticky="w", padx=10, pady=(0, 4))
                 
-        es_listo = self._normalizar_estado_pendiente(str(orden_activa.get("estado") or "")) in {"Listo", "Servido"}
-        es_servido = self._normalizar_estado_pendiente(str(orden_activa.get("estado") or "")) == "Servido"
+        estado_norm = self._normalizar_estado_pendiente(str(orden_activa.get("estado") or ""))
+        es_listo = estado_norm in {"Listo", "Servido"}
+        es_servido = estado_norm == "Servido"
+        es_cancelado = estado_norm == "Cancelado"
+        es_cancelable = estado_norm in {"Enviado a cocina", "En preparación", "En espera"}
         
         # Total
         total_suma = sum(float(it.get("precio", 0.0)) * max(1, int(it.get("cantidad", 1))) for it in orden_activa.get("items", []))
@@ -1069,7 +1108,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
             ctk.CTkLabel(metodo_frame, text="Método de pago:", text_color="#DCCAA8", font=("Segoe UI", 12)).pack(side="left", padx=10, pady=5)
             ctk.CTkLabel(metodo_frame, text=metodo, text_color="#F4EBD0", font=("Segoe UI", 12, "bold")).pack(side="right", padx=10, pady=5)
         
-        if not es_servido:
+        if not es_servido and not es_cancelado:
             acciones = ctk.CTkFrame(self._pendientes_detail_container, fg_color="transparent")
             acciones.pack(anchor="w", padx=14, pady=(14, 0))
     
@@ -1087,11 +1126,11 @@ class MeseroDesignWindow(ctk.CTkFrame):
             ctk.CTkButton(
                 acciones,
                 text="Cancelar pedido",
-                fg_color="#8C1A11" if not es_listo else "#2A1B1B",
-                hover_color="#A1241A" if not es_listo else "#2A1B1B",
-                text_color="#F4EBD0" if not es_listo else "#555555",
+                fg_color="#8C1A11" if es_cancelable else "#2A1B1B",
+                hover_color="#A1241A" if es_cancelable else "#2A1B1B",
+                text_color="#F4EBD0" if es_cancelable else "#555555",
                 font=("Segoe UI", 11, "bold"),
-                state="disabled" if es_listo else "normal",
+                state="normal" if es_cancelable else "disabled",
                 command=lambda t=ticket_seleccionado: self._cancelar_pedido_pendiente(t),
             ).pack(side="left", padx=(0, 8))
             
@@ -1129,7 +1168,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
 
     def _pedido_pendiente_editable(self, orden: dict[str, object]) -> bool:
         estado = self._normalizar_estado_pendiente(str(orden.get("estado") or ""))
-        return estado not in {"En preparación", "Listo", "Servido"}
+        return estado not in {"En preparación", "Listo", "Servido", "Cancelado"}
 
     @staticmethod
     def _normalizar_estado_pendiente(estado: str) -> str:
@@ -1142,6 +1181,8 @@ class MeseroDesignWindow(ctk.CTkFrame):
             return "En espera"
         if texto == "servido":
             return "Servido"
+        if texto == "cancelado":
+            return "Cancelado"
         return "Enviado a cocina"
 
     def _incrementar_item_pendiente(self, ticket: int, item_index: int) -> None:
@@ -1335,9 +1376,21 @@ class MeseroDesignWindow(ctk.CTkFrame):
         if not self.controlador_mesero.cancelar_pedido_pendiente(id_pedido):
             self._mostrar_notificacion("No se pudo cancelar el pedido", "#6F2C2C")
             return
-        self._retirar_orden_pendiente(orden)
+            
+        # Actualizamos estado para que quede registro visible
+        orden["estado"] = "Cancelado"
+        self._refrescar_ventana_pendientes(ticket)
+        self._liberar_mesa_de_orden(orden)
         self._mostrar_notificacion(f"Pedido #{id_pedido:05d} cancelado", "#8C1A11")
+        
+        from src.core.event_bus import event_bus
+        event_bus.emit("pedido.cancelado", {"id_pedido": id_pedido, "ticket": ticket})
 
+    def _retirar_orden_pendiente(self, orden: dict[str, object]) -> None:
+        if orden in self._ordenes_pendientes:
+            self._ordenes_pendientes.remove(orden)
+        self._refrescar_ventana_pendientes()
+        self._liberar_mesa_de_orden(orden)
 
     @staticmethod
     def _extraer_numero_mesa(texto: str) -> int | None:

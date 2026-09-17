@@ -19,7 +19,7 @@ def main() -> None:
     # Cargar configuración de base de datos y LAN
     load_db_config()
     
-    # Inicializar la aplicación principal (Ventana)
+
     app = MoscatoApp()
     app.mainloop()
 

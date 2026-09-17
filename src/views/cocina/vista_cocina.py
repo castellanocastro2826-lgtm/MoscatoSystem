@@ -390,6 +390,16 @@ class CocinaDesignWindow(ctk.CTkFrame):
         self._mostrar_notificacion(mensaje, "#8A6317")
         self._reproducir_campanita()
 
+    def notificar_cancelacion(self, ticket: int) -> None:
+        mensaje = f"ATENCIÓN: TICKET #{ticket:05d} fue CANCELADO"
+        self._mostrar_notificacion(mensaje, "#8C1A11")
+        try:
+            import winsound
+            winsound.Beep(500, 300)
+            winsound.Beep(400, 400)
+        except Exception:
+            self.bell()
+
     def _reproducir_campanita(self) -> None:
         try:
             import winsound

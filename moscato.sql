@@ -1,4 +1,4 @@
-﻿CREATE DATABASE IF NOT EXISTS moscato_db
+CREATE DATABASE IF NOT EXISTS moscato_db
     CHARACTER SET utf8mb4
     COLLATE utf8mb4_unicode_ci;
 USE moscato_db;
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
 CREATE TABLE IF NOT EXISTS mesas (
     id_mesa INT PRIMARY KEY AUTO_INCREMENT,
     numero_mesa INT UNIQUE NOT NULL,
-    estado ENUM('Libre', 'Ocupada', 'Inactiva') DEFAULT 'Libre',
+    estado ENUM('Libre', 'Atencion', 'Ocupada', 'Inactiva') DEFAULT 'Libre',
     activo TINYINT(1) DEFAULT 1,
     fecha_creacion DATETIME DEFAULT CURRENT_TIMESTAMP,
     fecha_actualizacion DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

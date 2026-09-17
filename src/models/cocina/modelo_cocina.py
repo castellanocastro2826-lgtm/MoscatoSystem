@@ -46,7 +46,7 @@ class ModeloCocina:
                 ON pr.id_producto = dp.id_producto
             LEFT JOIN mesas m
                 ON m.id_mesa = p.id_mesa
-            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación')
+            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Cancelado')
             ORDER BY dp.fecha_envio_cocina ASC, dp.id_detalle ASC
         """
 

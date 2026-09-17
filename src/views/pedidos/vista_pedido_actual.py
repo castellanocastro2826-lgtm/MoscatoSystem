@@ -44,7 +44,7 @@ class VistaPedidoActual:
         header.grid(row=0, column=0, sticky="ew", padx=14, pady=(14, 10))
         header.grid_columnconfigure(0, weight=1)
 
-        ctk.CTkLabel(header, text="Pedido Actual", text_color="#F4EBD0", font=("Segoe UI", 29, "bold")).grid(
+        ctk.CTkLabel(header, text="Ticket", text_color="#F4EBD0", font=("Segoe UI", 29, "bold")).grid(
             row=0, column=0, sticky="w"
         )
         self._mesa_label = ctk.CTkLabel(

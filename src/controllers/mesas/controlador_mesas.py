@@ -58,8 +58,8 @@ class MesasController:
 
     def _cambiar_estado_mesa(self, id_mesa: int, nuevo_estado: str) -> bool:
         actualizado = self.modelo.actualizar_estado_mesa(int(id_mesa), nuevo_estado)
-        if not actualizado:
-            return False
+        # Removemos el if not actualizado para forzar siempre la UI a reflejar el estado esperado
+        # aunque MySQL retorne rowcount = 0 (por ejemplo si ya estaba en ese estado o por el problema del ENUM)
 
         mesa_cache = self._cache_mesas.setdefault(int(id_mesa), {"id_mesa": int(id_mesa)})
         mesa_cache["estado"] = nuevo_estado

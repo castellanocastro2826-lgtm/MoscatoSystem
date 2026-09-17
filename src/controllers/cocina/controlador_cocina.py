@@ -18,12 +18,18 @@ class ControladorCocina:
         self.vista = vista
         self.modelo = modelo or ModeloCocina()
         self._refresh_after_id: str | None = None
+        self._pedidos_ocultos = set()
+        
         self._evento_pedido_creado = self._on_pedido_creado
+        self._evento_pedido_cancelado = self._on_pedido_cancelado
+        
         event_bus.subscribe("pedido.creado", self._evento_pedido_creado)
+        event_bus.subscribe("pedido.cancelado", self._evento_pedido_cancelado)
 
     def actualizar_pantalla(self) -> None:
         """Consulta pedidos reales y actualiza la vista."""
         pedidos_reales = self.modelo.obtener_pedidos_activos()
+        pedidos_reales = [p for p in pedidos_reales if p.get("id_pedido") not in self._pedidos_ocultos]
         pedidos_activos, tiempo_promedio, en_prep, pendientes = self._calcular_estadisticas(pedidos_reales)
         datos_mapeados = self._agrupar_items_a_tarjetas(pedidos_reales)
         self.vista.actualizar_monitor(datos_mapeados, self.al_hacer_clic_en_listo)
@@ -37,6 +43,11 @@ class ControladorCocina:
 
     def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
         """Avanza el estado del pedido completo y refresca la pantalla."""
+        if siguiente_estado == "Ocultar":
+            self._pedidos_ocultos.add(id_pedido)
+            self.actualizar_pantalla()
+            return
+
         estado_item = "En preparación" if siguiente_estado == "En preparación" else "Listo"
         estado_pedido = "En cocina" if siguiente_estado == "En preparación" else "Listo"
         self.modelo.actualizar_estado_pedido(id_pedido, estado_item, estado_pedido)
@@ -55,6 +66,7 @@ class ControladorCocina:
             self.vista.after_cancel(self._refresh_after_id)
             self._refresh_after_id = None
         event_bus.unsubscribe("pedido.creado", self._evento_pedido_creado)
+        event_bus.unsubscribe("pedido.cancelado", self._evento_pedido_cancelado)
 
     def _on_pedido_creado(self, evento: dict[str, Any]) -> None:
         if not getattr(self.vista, "winfo_exists", lambda: False)():
@@ -66,6 +78,18 @@ class ControladorCocina:
             self.vista.notificar_nueva_comanda(ticket=ticket, id_pedido=id_pedido)
             self.actualizar_pantalla()
 
+        self.vista.after(0, _notificar_y_refrescar)
+
+    def _on_pedido_cancelado(self, evento: dict[str, Any]) -> None:
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+        ticket = int(evento.get("ticket") or 0)
+        
+        def _notificar_y_refrescar() -> None:
+            if hasattr(self.vista, "notificar_cancelacion"):
+                self.vista.notificar_cancelacion(ticket=ticket)
+            self.actualizar_pantalla()
+            
         self.vista.after(0, _notificar_y_refrescar)
 
     def _agrupar_items_a_tarjetas(self, filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -115,7 +139,17 @@ class ControladorCocina:
 
         for grupo in grupos.values():
             estados = grupo.pop("_estados", set())
-            if "listo" in estados:
+            if "cancelado" in estados:
+                grupo["estado"] = "CANCELADO"
+                grupo["header_bg"] = "#333333"
+                grupo["estado_bg"] = "#1A1A1A"
+                grupo["borde"] = "#555555"
+                grupo["accion_texto"] = "OCULTAR TICKET"
+                grupo["accion_bg"] = "#555555"
+                grupo["accion_hover"] = "#777777"
+                grupo["siguiente_estado"] = "Ocultar"
+                grupo["accion_habilitada"] = True
+            elif "listo" in estados:
                 grupo["estado"] = "LISTO"
                 grupo["header_bg"] = "#1F5D35"
                 grupo["estado_bg"] = "#2E8F48"
