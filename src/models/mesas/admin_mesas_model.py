@@ -20,6 +20,7 @@ class AdminMesasModel:
                 m.id_mesa, 
                 m.numero_mesa, 
                 CASE 
+                    WHEN m.estado IN ('Atencion', 'Sirviendo', 'Ocupada') THEN m.estado
                     WHEN (SELECT COUNT(*) FROM pedidos p WHERE p.id_mesa = m.id_mesa AND p.pagado = 0 AND p.estado_pedido != 'Cancelado') > 0 THEN 'Ocupada'
                     WHEN m.estado = '' OR m.estado IS NULL THEN 'Libre'
                     ELSE m.estado 

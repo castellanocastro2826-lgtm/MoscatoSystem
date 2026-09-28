@@ -66,6 +66,7 @@ class ControladorCocina:
     def al_hacer_clic_en_listo(self, id_pedido: int, siguiente_estado: str) -> None:
         """Avanza el estado del pedido completo y refresca la pantalla."""
         if siguiente_estado == "Ocultar":
+            self.modelo.ocultar_pedido_cocina(id_pedido)
             self._pedidos_ocultos.add(id_pedido)
             self.actualizar_pantalla()
             return

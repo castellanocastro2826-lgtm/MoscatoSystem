@@ -224,6 +224,10 @@ class ModeloMesero:
 
                     id_pedido = int(cursor.lastrowid)
 
+                if id_mesa is not None:
+                    cursor.execute("UPDATE mesas SET estado = 'Atencion' WHERE id_mesa = %s", (id_mesa,))
+
+
 
 
                 self._asegurar_tabla_tickets(cursor)
@@ -396,7 +400,7 @@ class ModeloMesero:
 
             WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido')
 
-            AND DATE(p.fecha_apertura) = CURDATE() OR (p.pagado = 0 AND p.estado_pedido != 'Cancelado'))
+            AND (DATE(p.fecha_apertura) = CURDATE() OR (p.pagado = 0 AND p.estado_pedido != 'Cancelado'))
 
             ORDER BY p.id_pedido DESC, dp.id_detalle ASC
 

@@ -711,7 +711,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
                 self._refrescar_ventana_pendientes(int(orden.get("ticket") or 0))
 
         if estado_item == "En preparación":
-            self._mostrar_notificacion(f"El pedido #{pedido_id:05d} ya entro en preparacion", "#8A6317")
+            self._mostrar_notificacion(f"El pedido #{pedido_id:05d} ya entro En preparación", "#8A6317")
             self._reproducir_campanita()
         elif estado_item == "Listo":
             self._mostrar_notificacion(f"El pedido #{pedido_id:05d} esta LISTO para entregar", "#2F5C36")
@@ -1066,7 +1066,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
         ).pack(anchor="w", padx=14, pady=(4, 10))
 
         es_editable = self._pedido_pendiente_editable(orden_activa)
-        ayuda_estado = "Editable antes de que cocina lo ponga en preparación." if es_editable else "Este pedido ya esta en preparación o listo y no se puede editar."
+        ayuda_estado = "Editable antes de que cocina lo ponga En preparación." if es_editable else "Este pedido ya esta En preparación o listo y no se puede editar."
         ctk.CTkLabel(
             self._pendientes_detail_container,
             text=ayuda_estado,
@@ -1202,7 +1202,7 @@ class MeseroDesignWindow(ctk.CTkFrame):
     @staticmethod
     def _normalizar_estado_pendiente(estado: str) -> str:
         texto = (estado or "").strip().lower()
-        if texto in {"en preparación", "en preparacion", "preparando"}:
+        if texto in {"En preparación", "En preparación", "preparando"}:
             return "En preparación"
         if texto == "listo":
             return "Listo"
