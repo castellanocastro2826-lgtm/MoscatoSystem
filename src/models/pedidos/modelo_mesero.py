@@ -398,7 +398,7 @@ class ModeloMesero:
 
                 ON ptm.id_pedido = p.id_pedido
 
-            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido')
+            WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido', 'Cancelado')
 
             AND (DATE(p.fecha_apertura) = CURDATE() OR (p.pagado = 0 AND p.estado_pedido != 'Cancelado'))
 

@@ -48,6 +48,9 @@ class ControladorMesero:
                         event_bus.emit("pedido.listo", {"id_pedido": id_pedido, "estado_item": estado})
                         cambios = True
                         
+                if set(current_orders.keys()) != set(self._last_orders.keys()):
+                    cambios = True
+
                 # Update last orders state
                 self._last_orders = current_orders
                 
