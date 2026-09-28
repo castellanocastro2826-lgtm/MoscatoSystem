@@ -108,6 +108,12 @@ class ModeloCocina:
             SET estado_pedido = %s
             WHERE id_pedido = %s
         """
+        sql_mesa = """
+            UPDATE mesas m
+            INNER JOIN pedidos p ON m.id_mesa = p.id_mesa
+            SET m.estado = %s
+            WHERE p.id_pedido = %s
+        """
 
         connection = self._connect()
         try:
@@ -115,6 +121,10 @@ class ModeloCocina:
                 cursor.execute(sql_items, (nuevo_estado_item, id_pedido))
                 if nuevo_estado_pedido is not None:
                     cursor.execute(sql_pedido, (nuevo_estado_pedido, id_pedido))
+                
+                estado_mesa = "Atencion" if "prepara" in nuevo_estado_item.lower() else "Ocupada"
+                cursor.execute(sql_mesa, (estado_mesa, id_pedido))
+                
                 actualizado = cursor.rowcount >= 0
             connection.commit()
             return actualizado
