@@ -15,6 +15,10 @@ from src.models.pedidos.modelo_registro_pedidos import RegistroPedidosModel
 from src.views.pedidos.vista_registro_pedidos import RegistroPedidosView
 from src.controllers.pedidos.controlador_registro_pedidos import RegistroPedidosController
 
+from src.models.mesas.admin_mesas_model import AdminMesasModel
+from src.views.mesas.admin_mesas_view import AdminMesasView
+from src.controllers.mesas.admin_mesas_controller import AdminMesasController
+
 class UnifiedDashboardWindow(ctk.CTkFrame):
     """Vista del panel unificado de administracion (solo UI y eventos)."""
 
@@ -113,6 +117,7 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
             ("kitchen", "Auditoría de Sistema", False, self._show_auditoria),
             ("categories", "Gestion de Menu", False, self._show_menu),
             ("users", "Gestion de Usuarios", False, self._show_users),
+            ("mesas", "Gestión de Mesas", False, self._show_mesas),
         ]
 
         for idx, (key, text, active, command) in enumerate(nav_items):
@@ -196,6 +201,26 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
         self._activate_nav("orders")
         self._replace_main_panel()
         self._build_analisis_panel()
+
+    def _show_mesas(self) -> None:
+        self._activate_nav("mesas")
+        self._replace_main_panel()
+        self._build_mesas_panel()
+
+    def _build_mesas_panel(self):
+        self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)
+        self.main_panel.grid(row=0, column=1, sticky="nsew")
+        self.main_panel.grid_columnconfigure(0, weight=1)
+        self.main_panel.grid_rowconfigure(0, weight=1)
+
+        panel = ctk.CTkFrame(self.main_panel, fg_color="transparent")
+        panel.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        panel.grid_columnconfigure(0, weight=1)
+        panel.grid_rowconfigure(0, weight=1)
+
+        vista_mesas = AdminMesasView(panel)
+        modelo_mesas = AdminMesasModel()
+        self.current_panel_controller = AdminMesasController(modelo_mesas, vista_mesas)
 
     def _build_registro_pedidos_panel(self):
         self.main_panel = ctk.CTkFrame(self, fg_color=self.COLORS["wine_bg"], corner_radius=0)

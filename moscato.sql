@@ -140,7 +140,7 @@ CREATE TABLE IF NOT EXISTS detalle_pedido (
     descripcion_preparacion TEXT NULL,
     subtotal DECIMAL(10, 2) NOT NULL,
     fecha_envio_cocina DATETIME DEFAULT CURRENT_TIMESTAMP,
-    estado_item ENUM('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',
+    estado_item ENUM('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido', 'Cancelado') DEFAULT 'Pendiente',    oculto_cocina TINYINT(1) DEFAULT 0,
 
     FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
     FOREIGN KEY (id_producto) REFERENCES productos(id_producto)

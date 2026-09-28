@@ -13,13 +13,14 @@ class ControladorCocina:
     """Controlador MVC del monitor de cocina."""
 
     REFRESH_MS = 3000
+    _pedidos_ocultos_global: set[int] = set()
 
     def __init__(self, vista: CocinaDesignWindow, modelo: ModeloCocina | None = None) -> None:
         self.vista = vista
         self.modelo = modelo or ModeloCocina()
         self._refresh_after_id: str | None = None
         self._pedidos_ocultos = set()
-        
+        self._pedidos_ocultos = self._pedidos_ocultos_global
         self._evento_pedido_creado = self._on_pedido_creado
         self._evento_pedido_cancelado = self._on_pedido_cancelado
         

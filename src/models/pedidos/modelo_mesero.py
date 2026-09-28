@@ -396,7 +396,7 @@ class ModeloMesero:
 
             WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Listo', 'Servido')
 
-            AND DATE(p.fecha_apertura) = CURDATE()
+            AND DATE(p.fecha_apertura) = CURDATE() OR (p.pagado = 0 AND p.estado_pedido != 'Cancelado'))
 
             ORDER BY p.id_pedido DESC, dp.id_detalle ASC
 

@@ -17,6 +17,19 @@ class ModeloCocina:
             "database": os.getenv("DB_NAME", "moscato_db"),
             "autocommit": False,
         }
+        self._asegurar_columna_oculto()
+
+    def _asegurar_columna_oculto(self):
+        try:
+            conn = self._connect()
+            with conn.cursor() as cursor:
+                cursor.execute("SHOW COLUMNS FROM detalle_pedido LIKE 'oculto_cocina'")
+                if not cursor.fetchone():
+                    cursor.execute("ALTER TABLE detalle_pedido ADD COLUMN oculto_cocina TINYINT(1) DEFAULT 0")
+                    conn.commit()
+            conn.close()
+        except Exception:
+            pass
 
     def _connect(self):
         try:
@@ -47,6 +60,7 @@ class ModeloCocina:
             LEFT JOIN mesas m
                 ON m.id_mesa = p.id_mesa
             WHERE dp.estado_item IN ('Pendiente', 'En cocina', 'En preparación', 'Cancelado')
+              AND (dp.oculto_cocina = 0 OR dp.oculto_cocina IS NULL)
             ORDER BY dp.fecha_envio_cocina ASC, dp.id_detalle ASC
         """
 
@@ -107,5 +121,25 @@ class ModeloCocina:
         except Error as exc:
             connection.rollback()
             raise RuntimeError(f"Error actualizando estado del pedido: {exc}") from exc
+        finally:
+            connection.close()
+
+    def ocultar_pedido_cocina(self, id_pedido: int) -> bool:
+        """Marca todos los items de un pedido como ocultos en la cocina."""
+        sql = """
+            UPDATE detalle_pedido
+            SET oculto_cocina = 1
+            WHERE id_pedido = %s
+        """
+        connection = self._connect()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(sql, (id_pedido,))
+                actualizado = cursor.rowcount >= 0
+            connection.commit()
+            return actualizado
+        except Error as exc:
+            connection.rollback()
+            raise RuntimeError(f"Error ocultando pedido en cocina: {exc}") from exc
         finally:
             connection.close()
