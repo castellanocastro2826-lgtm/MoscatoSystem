@@ -1,5 +1,7 @@
+from datetime import date, timedelta
 import customtkinter as ctk
 import tkinter as tk
+from src.views.componentes.calendario_modal import CalendarioRangoModal
 
 class AnalisisView:
     COLORS = {
@@ -20,7 +22,13 @@ class AnalisisView:
 
     def __init__(self, parent):
         self.parent = parent
+        self.controller = None
         self._last_data = {}
+        
+        # Estado del rango de fechas (por defecto: Últimos 30 días)
+        self._fecha_fin = date.today()
+        self._fecha_inicio = self._fecha_fin - timedelta(days=29)
+        self._texto_periodo = "Últimos 30 días"
         
         self.frame = ctk.CTkFrame(
             parent,
@@ -56,22 +64,25 @@ class AnalisisView:
             font=("Segoe UI", 12), text_color=self.COLORS["text_secondary"]
         ).grid(row=0, column=0, sticky="w")
         
-        ctk.CTkLabel(
-            subtitle_frame, text="Últimos 30 días", 
+        self.lbl_periodo = ctk.CTkLabel(
+            subtitle_frame, text=self._texto_periodo, 
             font=("Segoe UI", 12, "bold"), text_color=self.COLORS["text_warm"]
-        ).grid(row=0, column=1, sticky="w")
+        )
+        self.lbl_periodo.grid(row=0, column=1, sticky="w")
         
         btn_frame = ctk.CTkFrame(header, fg_color="transparent")
         btn_frame.grid(row=0, column=1, sticky="e")
         
-        ctk.CTkButton(
-            btn_frame, text="📅 Rango de Fechas", width=140, height=36,
+        self.btn_rango = ctk.CTkButton(
+            btn_frame, text="📅 Rango de Fechas", width=160, height=36,
             fg_color="transparent", border_width=1, border_color=self.COLORS["panel_border"],
-            hover_color=self.COLORS["panel"], text_color=self.COLORS["text_secondary"], font=("Segoe UI", 12)
-        ).grid(row=0, column=0, padx=(0, 10))
+            hover_color=self.COLORS["panel"], text_color=self.COLORS["text_warm"], font=("Segoe UI", 12, "bold"),
+            command=self._abrir_modal_calendario
+        )
+        self.btn_rango.grid(row=0, column=0, padx=(0, 10))
         
         ctk.CTkButton(
-            btn_frame, text="📥 Exportar Excel", width=140, height=32,
+            btn_frame, text="📥 Exportar Excel", width=140, height=36,
             fg_color="#2EA44F", hover_color="#268841",
             text_color="#FFFFFF", font=("Segoe UI", 12, "bold"),
             command=self._exportar_reporte
@@ -88,9 +99,9 @@ class AnalisisView:
         for i in range(4):
             self.cards_frame.grid_columnconfigure(i, weight=1, uniform="card")
             
-        self.lbl_estrella = self._create_stat_card(self.cards_frame, 0, "PRODUCTO ESTRELLA", "-", "+0.0% vs mes anterior", self.COLORS["success"])
+        self.lbl_estrella = self._create_stat_card(self.cards_frame, 0, "PRODUCTO ESTRELLA", "-", "Mayor volumen en el período", self.COLORS["success"])
         self.lbl_ticket = self._create_stat_card(self.cards_frame, 1, "COMANDAS POR DÍA", "0", "Promedio diario", self.COLORS["success"])
-        self.lbl_pico = self._create_stat_card(self.cards_frame, 2, "PICO DE DEMANDA", "-", "", self.COLORS["warning"])
+        self.lbl_pico = self._create_stat_card(self.cards_frame, 2, "PICO DE DEMANDA", "-", "Horario con más pedidos", self.COLORS["warning"])
         self.lbl_categoria = self._create_stat_card(self.cards_frame, 3, "CATEGORÍA MÁS RENTABLE", "-", "📈 Liderando el volumen de ventas", self.COLORS["text_secondary"])
 
         # Top 5
@@ -139,6 +150,39 @@ class AnalisisView:
         
         return lbl_val
 
+    def _abrir_modal_calendario(self):
+        try:
+            parent_window = self.frame.winfo_toplevel()
+        except Exception:
+            parent_window = self.frame
+
+        CalendarioRangoModal(
+            parent=parent_window,
+            fecha_inicio=self._fecha_inicio,
+            fecha_fin=self._fecha_fin,
+            on_apply=self._aplicar_rango_fechas
+        )
+
+    def _aplicar_rango_fechas(self, fecha_inicio, fecha_fin, texto_periodo):
+        self._fecha_inicio = fecha_inicio
+        self._fecha_fin = fecha_fin
+        self._texto_periodo = texto_periodo
+        self.lbl_periodo.configure(text=texto_periodo)
+
+        if fecha_inicio and fecha_fin:
+            f1 = fecha_inicio.strftime('%d/%m/%Y')
+            f2 = fecha_fin.strftime('%d/%m/%Y')
+            if texto_periodo in ("Hoy", "Ayer", "Últimos 7 días", "Últimos 30 días", "Este Mes", "Todo el Historial"):
+                btn_txt = f"📅 {texto_periodo}"
+            else:
+                btn_txt = f"📅 {f1} - {f2}"
+        else:
+            btn_txt = "📅 Rango de Fechas"
+        self.btn_rango.configure(text=btn_txt)
+
+        if self.controller:
+            self.controller.cargar_datos(fecha_inicio, fecha_fin)
+
     def actualizar_dashboard(self, data):
         self._last_data = data
         self.lbl_estrella.configure(text=data.get("producto_estrella", "N/A") or "N/A")
@@ -152,7 +196,7 @@ class AnalisisView:
             
         top5 = data.get("top_5", [])
         if not top5:
-            ctk.CTkLabel(self.top5_container, text="No hay datos de ventas.", text_color=self.COLORS["text_secondary"]).grid(row=0, column=0, pady=20)
+            ctk.CTkLabel(self.top5_container, text="No hay datos de ventas en este período.", text_color=self.COLORS["text_secondary"]).grid(row=0, column=0, pady=20)
         else:
             max_ventas = float(max(float(item["total_vendido"]) for item in top5)) if top5 else 1.0
             for i, item in enumerate(top5):
@@ -179,30 +223,21 @@ class AnalisisView:
         if max_pedidos == 0:
             max_pedidos = 1
             
-        # Filtrar o mostrar las horas (9 a 20)
-        horas_mostrar = list(range(9, 21))
-        
-        num_cols = len(horas_mostrar)
+        num_cols = len(ventas_hora)
         for i in range(num_cols):
             self.chart_container.grid_columnconfigure(i, weight=1, uniform="bar")
             
         self.chart_container.grid_rowconfigure(0, weight=1)
-        self.chart_container.grid_rowconfigure(1, weight=0) # Para labels
+        self.chart_container.grid_rowconfigure(1, weight=0)
         
-        for idx, h in enumerate(horas_mostrar):
-            hora_str = f"{h:02d}:00"
-            pedidos = 0
-            for item in ventas_hora:
-                if item["hora"] == hora_str:
-                    pedidos = item["pedidos"]
-                    break
+        for idx, item in enumerate(ventas_hora):
+            hora_str = item["hora"]
+            pedidos = item["pedidos"]
             
             bar_frame = ctk.CTkFrame(self.chart_container, fg_color="transparent")
             bar_frame.grid(row=0, column=idx, sticky="nsew", padx=2)
             
             porcentaje = (pedidos / max_pedidos) if max_pedidos > 0 else 0
-            
-            # Base track height if 0
             if porcentaje < 0.03:
                 porcentaje = 0.03
 
@@ -216,7 +251,8 @@ class AnalisisView:
                 lbl.place(relx=0.5, rely=1.0 - porcentaje - 0.05, anchor="s")
 
             if idx % 2 == 0:
-                ctk.CTkLabel(self.chart_container, text=hora_str, font=("Segoe UI", 9), text_color=self.COLORS["text_secondary"]).grid(row=1, column=idx, pady=(5, 0))
+                ctk.CTkLabel(self.chart_container, text=hora_str, font=("Segoe UI", 8), text_color=self.COLORS["text_secondary"]).grid(row=1, column=idx, pady=(5, 0))
+
     def _exportar_reporte(self):
         if not self._last_data:
             from tkinter import messagebox
@@ -238,40 +274,24 @@ class AnalisisView:
         try:
             import sys
             import os
-            # Ensure src is in path to import utils
             current_dir = os.path.dirname(os.path.abspath(__file__))
             src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
             if src_dir not in sys.path:
                 sys.path.insert(0, src_dir)
                 
-            from utils.excel_export import guardar_como_excel
+            from utils.excel_export import guardar_como_excel_analisis
             
-            filas = []
-            
-            # Resumen
-            filas.append(["=== RESUMEN DE ANÁLISIS ===", ""])
-            filas.append(["Producto Estrella", self._last_data.get("producto_estrella", "N/A")])
-            filas.append(["Ticket Promedio", self._last_data.get("ticket_promedio", 0)])
-            filas.append(["Pico de Demanda", self._last_data.get("pico_demanda", "N/A")])
-            filas.append(["Categoría Más Rentable", self._last_data.get("categoria_rentable", "N/A")])
-            filas.append(["", ""])
-            
-            # Top 5
-            filas.append(["=== TOP 5 PLATOS MÁS VENDIDOS ===", ""])
-            filas.append(["Plato", "Total Vendido"])
             top5 = self._last_data.get("top_5", [])
-            for item in top5:
-                filas.append([item.get("nombre", ""), item.get("total_vendido", 0)])
-            filas.append(["", ""])
-            
-            # Ventas por hora
-            filas.append(["=== VENTAS POR HORA ===", ""])
-            filas.append(["Hora del Día", "Cantidad de Pedidos"])
             ventas_hora = self._last_data.get("ventas_por_hora", [])
-            for item in ventas_hora:
-                filas.append([item.get("hora", ""), item.get("pedidos", 0)])
-                
-            guardar_como_excel(filepath, filas, tipo="multitabla")
+            resumen = {
+                "Período de Análisis": self._texto_periodo,
+                "Producto Estrella": self._last_data.get("producto_estrella", "N/A"),
+                "Comandas por Día (Promedio)": self._last_data.get("ticket_promedio", 0),
+                "Pico de Demanda": self._last_data.get("pico_demanda", "N/A"),
+                "Categoría Más Rentable": self._last_data.get("categoria_rentable", "N/A"),
+            }
+            
+            guardar_como_excel_analisis(filepath, resumen, top5, ventas_hora)
             from tkinter import messagebox
             messagebox.showinfo("Exportar", f"Reporte exportado correctamente a:\n{filepath}")
         except ImportError:

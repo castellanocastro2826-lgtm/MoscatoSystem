@@ -22,6 +22,8 @@ class MesasController:
         self.cargar_estado_inicial()
 
     def cargar_estado_inicial(self) -> None:
+        # Sincroniza primero: corrige mesas con estado incorrecto en DB
+        self.modelo.sincronizar_estados_mesas()
         mesas = self.modelo.obtener_mesas()
         self._cache_mesas = {int(mesa["id_mesa"]): dict(mesa) for mesa in mesas if mesa.get("id_mesa") is not None}
         self.vista.dibujar_mesas(mesas)

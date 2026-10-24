@@ -23,9 +23,11 @@ class ControladorCocina:
         self._pedidos_ocultos = self._pedidos_ocultos_global
         self._evento_pedido_creado = self._on_pedido_creado
         self._evento_pedido_cancelado = self._on_pedido_cancelado
+        self._evento_pedido_actualizado = self._on_pedido_actualizado
         
         event_bus.subscribe("pedido.creado", self._evento_pedido_creado)
         event_bus.subscribe("pedido.cancelado", self._evento_pedido_cancelado)
+        event_bus.subscribe("pedido.actualizado", self._evento_pedido_actualizado)
 
     def actualizar_pantalla(self) -> None:
         """Consulta pedidos reales en segundo plano y actualiza la vista."""
@@ -90,6 +92,7 @@ class ControladorCocina:
             self._refresh_after_id = None
         event_bus.unsubscribe("pedido.creado", self._evento_pedido_creado)
         event_bus.unsubscribe("pedido.cancelado", self._evento_pedido_cancelado)
+        event_bus.unsubscribe("pedido.actualizado", self._evento_pedido_actualizado)
 
     def _on_pedido_creado(self, evento: dict[str, Any]) -> None:
         if not getattr(self.vista, "winfo_exists", lambda: False)():
@@ -114,6 +117,11 @@ class ControladorCocina:
             self.actualizar_pantalla()
             
         self.vista.after(0, _notificar_y_refrescar)
+
+    def _on_pedido_actualizado(self, evento: dict[str, Any]) -> None:
+        if not getattr(self.vista, "winfo_exists", lambda: False)():
+            return
+        self.vista.after(0, self.actualizar_pantalla)
 
     def _agrupar_items_a_tarjetas(self, filas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Agrupa filas por id_pedido (si existe) o por numero_mesa para renderizar una tarjeta por pedido."""

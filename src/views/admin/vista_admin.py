@@ -821,9 +821,54 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
         username_entry.grid(row=7, column=0, sticky="ew", padx=20)
         username_entry.insert(0, str((empleado or {}).get("username", "")))
 
-        ctk.CTkLabel(content, text="Contraseña", font=(self.FONT, 11, "bold"), text_color=self.COLORS["text_warm"], anchor="w").grid(row=8, column=0, sticky="w", padx=20, pady=(12, 5))
-        password_entry = ctk.CTkEntry(content, height=36, show="*", fg_color=self.COLORS["wine_bg"], border_color=self.COLORS["panel_border"], text_color=self.COLORS["text_primary"], font=(self.FONT, 12), placeholder_text="Obligatoria para nuevos usuarios")
-        password_entry.grid(row=9, column=0, sticky="ew", padx=20)
+        ctk.CTkLabel(content, text="Contraseña (solo números)", font=(self.FONT, 11, "bold"), text_color=self.COLORS["text_warm"], anchor="w").grid(row=8, column=0, sticky="w", padx=20, pady=(12, 5))
+
+        def _validate_numeric_password(val):
+            return val.isdigit() or val == ""
+
+        vcmd = (form.register(_validate_numeric_password), '%P')
+
+        pass_container = ctk.CTkFrame(content, fg_color="transparent")
+        pass_container.grid(row=9, column=0, sticky="ew", padx=20)
+        pass_container.grid_columnconfigure(0, weight=1)
+
+        password_entry = ctk.CTkEntry(
+            pass_container,
+            height=36,
+            show="*",
+            fg_color=self.COLORS["wine_bg"],
+            border_color=self.COLORS["panel_border"],
+            text_color=self.COLORS["text_primary"],
+            font=(self.FONT, 12),
+            placeholder_text="Obligatoria para nuevos usuarios (solo números)",
+            validate="key",
+            validatecommand=vcmd
+        )
+        password_entry.grid(row=0, column=0, sticky="ew", padx=(0, 6))
+
+        def _toggle_password():
+            if password_entry.cget("show") == "*":
+                password_entry.configure(show="")
+                toggle_btn.configure(text="🔒", fg_color=self.COLORS["accent"], hover_color=self.COLORS["accent_hover"])
+            else:
+                password_entry.configure(show="*")
+                toggle_btn.configure(text="👁", fg_color=self.COLORS["wine_bg"], hover_color=self.COLORS["hover_surface"])
+
+        toggle_btn = ctk.CTkButton(
+            pass_container,
+            text="👁",
+            width=42,
+            height=36,
+            corner_radius=6,
+            fg_color=self.COLORS["wine_bg"],
+            hover_color=self.COLORS["hover_surface"],
+            border_width=1,
+            border_color=self.COLORS["panel_border"],
+            text_color=self.COLORS["text_warm"],
+            font=(self.FONT, 13),
+            command=_toggle_password
+        )
+        toggle_btn.grid(row=0, column=1)
 
         buttons = ctk.CTkFrame(content, fg_color="transparent")
         buttons.grid(row=10, column=0, sticky="ew", padx=20, pady=(26, 20))
@@ -843,6 +888,10 @@ class UnifiedDashboardWindow(ctk.CTkFrame):
                 return
             if not empleado and not password:
                 messagebox.showwarning("Campo requerido", "Ingresa una contraseña para el nuevo usuario.", parent=form)
+                password_entry.focus_set()
+                return
+            if password and not password.isdigit():
+                messagebox.showwarning("Contraseña inválida", "La contraseña solo debe contener números.", parent=form)
                 password_entry.focus_set()
                 return
             on_submit((nombre, role_menu.get(), username, password))

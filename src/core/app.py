@@ -33,6 +33,7 @@ class DatabaseConnection:
             "password": os.getenv("DB_PASSWORD", ""),
             "database": os.getenv("DB_NAME", "moscato_db"),
             "autocommit": True,
+            "connection_timeout": 4,
         }
 
     def connect(self):

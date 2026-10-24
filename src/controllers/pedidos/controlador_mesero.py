@@ -39,13 +39,24 @@ class ControladorMesero:
                 current_orders = {}
                 for orden in ordenes:
                     id_pedido = int(orden.get("id_pedido") or 0)
-                    estado = str(orden.get("estado_item") or orden.get("estado_pedido") or "")
-                    current_orders[id_pedido] = estado
+                    item_st = str(orden.get("estado_item") or "").strip()
+                    ped_st = str(orden.get("estado_pedido") or "").strip()
+                    if "prepara" in item_st.lower():
+                        estado = "En preparación"
+                    elif "listo" in item_st.lower() or "listo" in ped_st.lower():
+                        estado = "Listo"
+                    elif "cancel" in item_st.lower() or "cancel" in ped_st.lower():
+                        estado = "Cancelado"
+                    else:
+                        estado = item_st or ped_st or "En cocina"
+                    
+                    if id_pedido not in current_orders or estado in ("En preparación", "Listo", "Cancelado"):
+                        current_orders[id_pedido] = estado
                     
                     last_estado = self._last_orders.get(id_pedido)
                     if last_estado is not None and last_estado != estado:
                         # Emite evento de que un pedido cambió de estado
-                        event_bus.emit("pedido.listo", {"id_pedido": id_pedido, "estado_item": estado})
+                        event_bus.emit("pedido.listo", {"id_pedido": id_pedido, "estado_item": estado, "estado_pedido": estado})
                         cambios = True
                         
                 if set(current_orders.keys()) != set(self._last_orders.keys()):
@@ -82,6 +93,23 @@ class ControladorMesero:
                             "notas": row.get("descripcion_preparacion", ""),
                             "estado_item": row.get("estado_item", "")
                         })
+
+                    # Resolver estado real del pedido (priorizar En preparación / Listo según sus items)
+                    for t, orden_dict in grouped.items():
+                        items_estados = [str(it.get("estado_item") or "").lower() for it in orden_dict["items"]]
+                        estado_base = str(orden_dict.get("estado") or "")
+                        if estado_base == "Cancelado" or (items_estados and all("cancel" in e for e in items_estados)):
+                            orden_dict["estado"] = "Cancelado"
+                        elif estado_base == "Servido":
+                            orden_dict["estado"] = "Servido"
+                        elif estado_base == "Listo" or any("listo" in e for e in items_estados):
+                            orden_dict["estado"] = "Listo"
+                        elif any("prepara" in e for e in items_estados):
+                            orden_dict["estado"] = "En preparación"
+                        elif estado_base:
+                            orden_dict["estado"] = estado_base
+                        else:
+                            orden_dict["estado"] = "En cocina"
                     
                     ordenes_agrupadas = list(grouped.values())
                     event_bus.emit("pedidos.pendientes_actualizados", {"ordenes": ordenes_agrupadas})
@@ -98,10 +126,23 @@ class ControladorMesero:
     def cancelar_pedido_pendiente(self, id_pedido: int) -> bool:
         exito = self.modelo.cancelar_pedido_pendiente(id_pedido)
         if exito:
-            from src.utils.event_bus import event_bus
-            event_bus.publish("pedido.cancelado", {"id_pedido": id_pedido})
+            event_bus.emit("pedido.cancelado", {"id_pedido": id_pedido})
         return exito
 
     def consultar_ticket_por_id(self, id_pedido: int) -> int | None:
         return self.modelo.consultar_ticket_por_id(id_pedido)
 
+    def cambiar_a_para_llevar(self, id_pedido: int) -> bool:
+        """Cambia el pedido a Para llevar en DB y emite evento para sincronizar vistas."""
+        exito = self.modelo.cambiar_a_para_llevar(id_pedido)
+        if exito:
+            event_bus.emit("pedido.actualizado", {"id_pedido": id_pedido, "tipo_pedido": "Para llevar"})
+        return exito
+
+    def cambiar_tipo_pedido_pendiente(self, id_pedido: int, nuevo_tipo: str) -> bool:
+        if nuevo_tipo == "Para llevar":
+            return self.cambiar_a_para_llevar(id_pedido)
+        exito = self.modelo.cambiar_tipo_pedido(id_pedido, nuevo_tipo)
+        if exito:
+            event_bus.emit("pedido.actualizado", {"id_pedido": id_pedido, "tipo_pedido": nuevo_tipo})
+        return exito

@@ -51,6 +51,46 @@ class MesasModel:
             self.ultimo_error = str(exc)
             return []
 
+    def sincronizar_estados_mesas(self) -> list[int]:
+        """
+        Resetea a 'Libre' todas las mesas cuyo estado en DB sea Atencion/Ocupada
+        pero que no tengan ningun pedido activo (Abierto/En cocina/Listo).
+        Retorna la lista de id_mesa corregidos.
+        """
+        sql_select = """
+            SELECT m.id_mesa
+            FROM mesas m
+            WHERE m.activo = 1
+              AND m.estado IN ('Atencion', 'Ocupada')
+              AND m.id_mesa NOT IN (
+                  SELECT DISTINCT p.id_mesa FROM pedidos p
+                  WHERE p.estado_pedido IN ('Abierto', 'En cocina', 'Listo')
+                    AND p.id_mesa IS NOT NULL
+              )
+        """
+        sql_update = "UPDATE mesas SET estado = 'Libre' WHERE id_mesa = %s AND activo = 1"
+        corregidas: list[int] = []
+        self.ultimo_error = None
+        try:
+            connection = self._connect()
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(sql_select)
+                    ids = [row[0] for row in cursor.fetchall()]
+                for id_m in ids:
+                    with connection.cursor() as cursor:
+                        cursor.execute(sql_update, (id_m,))
+                    corregidas.append(id_m)
+                connection.commit()
+            except Error:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()
+        except (ConnectionError, Error) as exc:
+            self.ultimo_error = str(exc)
+        return corregidas
+
     def actualizar_estado_mesa(self, id_mesa: int, nuevo_estado: str) -> bool:
         """Actualiza estado de una mesa; retorna True cuando el UPDATE afecta filas."""
         if nuevo_estado not in self.ESTADOS_PERMITIDOS:

@@ -94,14 +94,37 @@ class RegistroPedidosController:
             
             filas = [["ID Pedido", "Mesa", "Mesero", "Fecha", "Total", "Método Pago", "Estado"]]
             for p in historial:
+                mesa_val = p.get("numero_mesa")
+                tipo_ped = str(p.get("tipo_pedido") or "").strip().lower()
+                if mesa_val and tipo_ped != "para llevar":
+                    mesa_str = f"Mesa {mesa_val}" if not str(mesa_val).lower().startswith("mesa") else str(mesa_val)
+                else:
+                    mesa_str = "Para llevar"
+
+                mesero_str = str(p.get("mesero_nombre") or p.get("nombre_mesero") or "-").strip()
+                if mesero_str and mesero_str != "-":
+                    mesero_str = mesero_str.title()
+
+                fecha_str = str(p.get("fecha_completa") or p.get("hora") or (fecha.strftime('%Y-%m-%d') if hasattr(fecha, 'strftime') else str(fecha)))
+
+                total_val = float(p.get("total", 0.0) or 0.0)
+
+                metodo_raw = p.get("metodo_pago")
+                if metodo_raw and str(metodo_raw).strip():
+                    metodo_str = str(metodo_raw).strip().title()
+                else:
+                    metodo_str = "Pendiente"
+
+                estado_str = str(p.get("estado_pedido") or "")
+
                 filas.append([
                     p.get("id_pedido", ""),
-                    p.get("numero_mesa", ""),
-                    p.get("nombre_mesero", ""),
-                    p.get("fecha_pedido", ""),
-                    float(p.get("total", 0)),
-                    p.get("metodo_pago", ""),
-                    p.get("estado_pedido", "")
+                    mesa_str,
+                    mesero_str,
+                    fecha_str,
+                    total_val,
+                    metodo_str,
+                    estado_str
                 ])
                 
             guardar_como_excel(file_path, filas, tipo="tabla")

@@ -705,16 +705,14 @@ class ModeloMesero:
 
 
     def cancelar_pedido_pendiente(self, id_pedido: int) -> bool:
-
         connection = self._connect_db()
-
         if not connection:
-
             return False
-
         try:
-
             with connection.cursor() as cursor:
+                cursor.execute("SELECT id_mesa FROM pedidos WHERE id_pedido = %s", (id_pedido,))
+                row = cursor.fetchone()
+                id_mesa = row[0] if (row and row[0]) else None
 
                 cursor.execute(
                     "UPDATE pedidos SET estado_pedido = 'Cancelado' WHERE id_pedido = %s",
@@ -725,21 +723,78 @@ class ModeloMesero:
                     (id_pedido,)
                 )
 
+                if id_mesa is not None:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM pedidos 
+                        WHERE id_mesa = %s 
+                          AND estado_pedido IN ('Abierto', 'En cocina', 'Listo')
+                          AND id_pedido != %s
+                    """, (id_mesa, id_pedido))
+                    row_act = cursor.fetchone()
+                    activos = row_act[0] if row_act else 0
+                    if activos == 0:
+                        cursor.execute("UPDATE mesas SET estado = 'Libre' WHERE id_mesa = %s AND activo = 1", (id_mesa,))
+
             connection.commit()
-
             return True
-
         except Error:
-
             connection.rollback()
-
             return False
-
         finally:
-
             connection.close()
 
+    def cambiar_a_para_llevar(self, id_pedido: int) -> bool:
+        """Actualiza tipo_pedido a 'Para llevar', desvincula la mesa y la libera en DB."""
+        connection = self._connect_db()
+        if not connection:
+            return False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT id_mesa FROM pedidos WHERE id_pedido = %s", (id_pedido,))
+                row = cursor.fetchone()
+                id_mesa = row[0] if (row and row[0]) else None
 
+                cursor.execute(
+                    "UPDATE pedidos SET tipo_pedido = 'Para llevar', id_mesa = NULL WHERE id_pedido = %s",
+                    (id_pedido,)
+                )
+
+                if id_mesa is not None:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM pedidos 
+                        WHERE id_mesa = %s 
+                          AND estado_pedido IN ('Abierto', 'En cocina', 'Listo')
+                          AND id_pedido != %s
+                    """, (id_mesa, id_pedido))
+                    row_act = cursor.fetchone()
+                    activos = row_act[0] if row_act else 0
+                    if activos == 0:
+                        cursor.execute("UPDATE mesas SET estado = 'Libre' WHERE id_mesa = %s AND activo = 1", (id_mesa,))
+
+            connection.commit()
+            return True
+        except Error:
+            connection.rollback()
+            return False
+        finally:
+            connection.close()
+
+    def cambiar_tipo_pedido(self, id_pedido: int, nuevo_tipo: str) -> bool:
+        if nuevo_tipo == "Para llevar":
+            return self.cambiar_a_para_llevar(id_pedido)
+        connection = self._connect_db()
+        if not connection:
+            return False
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute("UPDATE pedidos SET tipo_pedido = %s WHERE id_pedido = %s", (nuevo_tipo, id_pedido))
+            connection.commit()
+            return True
+        except Error:
+            connection.rollback()
+            return False
+        finally:
+            connection.close()
 
     def consultar_ticket_por_id(self, id_pedido: int) -> int | None:
 

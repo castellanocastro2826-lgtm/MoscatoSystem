@@ -74,6 +74,7 @@ class RegistroPedidosModel:
                 SELECT 
                     p.id_pedido,
                     DATE_FORMAT(p.fecha_apertura, '%d/%m - %H:%i') as hora,
+                    DATE_FORMAT(p.fecha_apertura, '%Y-%m-%d %H:%i') as fecha_completa,
                     m.numero_mesa,
                     p.tipo_pedido,
                     u.username as mesero_nombre,
@@ -83,8 +84,8 @@ class RegistroPedidosModel:
                     p.estado_pedido
                 FROM pedidos p
                 LEFT JOIN mesas m ON p.id_mesa = m.id_mesa
-                JOIN usuarios u ON p.id_usuario = u.id_usuario
-                JOIN empleados e ON u.id_empleado = e.id_empleado
+                LEFT JOIN usuarios u ON p.id_usuario = u.id_usuario
+                LEFT JOIN empleados e ON u.id_empleado = e.id_empleado
                 LEFT JOIN detalle_pedido dp ON p.id_pedido = dp.id_pedido
                 WHERE DATE(p.fecha_apertura) = %s
                 GROUP BY p.id_pedido, p.fecha_apertura, m.numero_mesa, p.tipo_pedido, u.username, e.id_empleado, p.metodo_pago, p.estado_pedido

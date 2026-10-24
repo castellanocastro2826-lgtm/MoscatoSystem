@@ -39,7 +39,7 @@ def initialize_database():
     
     try:
         # Connect without specifying database to check/create it
-        conn = mysql.connector.connect(**config)
+        conn = mysql.connector.connect(**config, connection_timeout=4)
         cursor = conn.cursor()
         
         cursor.execute("SHOW DATABASES LIKE %s", (db_name,))
