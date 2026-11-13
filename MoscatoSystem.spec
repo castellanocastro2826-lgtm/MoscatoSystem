@@ -1,13 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
+hidden_modules = (
+    collect_submodules('openpyxl') +
+    collect_submodules('et_xmlfile') +
+    [
+        'src.utils.excel_export',
+        'mysql.connector',
+        'mysql.connector.plugins.mysql_native_password',
+        'mysql.connector.plugins.caching_sha2_password',
+    ]
+)
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=collect_data_files('customtkinter') + collect_data_files('mysql.connector') + [('moscato.sql', '.')],
-    hiddenimports=['openpyxl', 'mysql.connector', 'mysql.connector.plugins.mysql_native_password', 'mysql.connector.plugins.caching_sha2_password'],
+    datas=collect_data_files('customtkinter') + collect_data_files('mysql.connector') + [('moscato.sql', '.'), ('moscato_logo.ico', '.')],
+    hiddenimports=hidden_modules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -36,4 +46,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='moscato_logo.ico',
 )

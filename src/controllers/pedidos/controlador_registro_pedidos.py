@@ -83,14 +83,16 @@ class RegistroPedidosController:
             return
             
         try:
-            import sys
-            import os
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-            if src_dir not in sys.path:
-                sys.path.insert(0, src_dir)
-                
-            from utils.excel_export import guardar_como_excel
+            try:
+                from src.utils.excel_export import guardar_como_excel
+            except ImportError:
+                import sys
+                import os
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+                if src_dir not in sys.path:
+                    sys.path.insert(0, src_dir)
+                from utils.excel_export import guardar_como_excel
             
             filas = [["ID Pedido", "Mesa", "Mesero", "Fecha", "Total", "Método Pago", "Estado"]]
             for p in historial:

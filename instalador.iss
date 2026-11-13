@@ -7,6 +7,7 @@ DefaultGroupName=Restaurante Moscato
 ; La carpeta donde se guardará tu Instalador final
 OutputDir=C:\Users\manue\proyectos\Proyecto_v.3\Instalador
 OutputBaseFilename=Instalar_Moscato
+SetupIconFile=C:\Users\manue\proyectos\Proyecto_v.3\moscato_logo.ico
 Compression=lzma
 SolidCompression=yes
 ; Pide permisos de administrador sólo al instalar
@@ -25,4 +26,6 @@ Name: "{group}\Restaurante Moscato"; Filename: "{app}\MoscatoSystem.exe"
 Name: "{autodesktop}\Restaurante Moscato"; Filename: "{app}\MoscatoSystem.exe"; Tasks: desktopicon
 
 [Tasks]
+Name: "desktopicon"; Description: "Crear un icono en el escritorio"; GroupDescription: "Accesos directos:"
+
 Name: "desktopicon"; Description: "Crear un icono en el escritorio"; GroupDescription: "Accesos directos:"

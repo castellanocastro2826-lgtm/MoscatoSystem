@@ -501,15 +501,16 @@ class AuditoriaView:
             return
             
         try:
-            import sys
-            import os
-            # Ensure src is in path to import utils
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
-            if src_dir not in sys.path:
-                sys.path.insert(0, src_dir)
-                
-            from utils.excel_export import guardar_como_excel
+            try:
+                from src.utils.excel_export import guardar_como_excel
+            except ImportError:
+                import sys
+                import os
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                src_dir = os.path.abspath(os.path.join(current_dir, '..', '..'))
+                if src_dir not in sys.path:
+                    sys.path.insert(0, src_dir)
+                from utils.excel_export import guardar_como_excel
             
             filas = []
             filas.append(["FECHA Y HORA", "USUARIO", "ACCIÓN", "TABLA AFECTADA", "DETALLES", "IP ORIGEN"])

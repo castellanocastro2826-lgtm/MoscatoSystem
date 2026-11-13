@@ -50,6 +50,20 @@ class MoscatoApp(ctk.CTk):
         self.geometry("900x600")
         self.minsize(800, 500)
         self.configure(fg_color="#0D0D0D")
+        
+        # Cargar icono de la ventana
+        import sys
+        from src.utils.paths import get_project_root
+        try:
+            if getattr(sys, 'frozen', False):
+                icon_path = os.path.join(sys._MEIPASS, "moscato_logo.ico")
+            else:
+                icon_path = os.path.join(get_project_root(), "moscato_logo.ico")
+                
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception as e:
+            logging.warning(f"No se pudo cargar el icono: {e}")
 
         # Se carga la configuracion de base de datos desde db_config.json
         load_db_config()
